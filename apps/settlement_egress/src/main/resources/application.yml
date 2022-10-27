@@ -1,0 +1,5 @@
+aws:
+  safeStoreTable: "settlement-egress-dynamodb-store"
+  inboundStreamName: "settlement-egress-us-east-1-kinesis-stream"
+  outboundStreamName: "settlement-out-gateway-us-east-1-kinesis-stream"
+  region: "us-east-1"

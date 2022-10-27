@@ -1,0 +1,17 @@
+version: 0.2
+
+env:
+  variables:
+    NODE_ENV: "${env}"
+
+phases:
+  install:
+    runtime-versions:
+      java: corretto17
+  pre_build:
+    commands:
+      - cd apps/container_scripts
+  build:
+    commands:
+      - java -version
+      - make deploy-all

@@ -1,0 +1,27 @@
+{    
+    "MetricDataQueries":[
+        {
+            "Id": "DynamoDBQuery1",
+            "MetricStat": {
+                "Metric": {
+                    "Namespace": "AWS/DynamoDB",
+                    "MetricName": "ReplicationLatency",
+                    "Dimensions": [
+                                {
+                                    "Name": "TableName",
+                                    "Value": "trade-matching-ingress-trade-dynamodb-store"
+                                },
+                                {
+                                    "Name": "ReceivingRegion",
+                                    "Value": "us-west-2"                                }
+                            ]
+                },
+                "Period": 60,
+                "Stat": "Average",
+                "Unit": "Milliseconds"
+            }
+        }
+    ],
+    "StartTime":"2022-03-22T00:00:0000",
+    "EndTime":"2022-03-23T10:00:0000"
+}

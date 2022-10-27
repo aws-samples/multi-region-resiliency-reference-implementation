@@ -1,0 +1,33 @@
+aws:
+  stateTableName: "approtationTesting"
+  stateSettlementTableName: "test22"
+  streamName: "testinStream"
+  settlementStreamName: "test2"
+  region: "us-east-1"
+  arcClusterArn: ""
+  controlPanel: trade-matching-control-panel
+  routingControlPrefix: trade-matching-queue-
+# log level values: trace, debug, info, warn, error, fatal or off
+logging:
+  level:
+    root: info
+    rapide: info
+spring:
+  main:
+    web-application-type: "none"
+    banner-mode: "off"
+  jms:
+    settlementQueue:
+      name: "settlements"
+    queue:
+      name: "inboundTesting"
+    listener:
+      acknowledge-mode: client
+  activemq:
+    broker-url: ssl://b-f0bd1dbe-161e-4dcc-9056-c7bf22476951-1.mq.us-east-1.amazonaws.com:61617
+    pool:
+      enabled: true
+      max-connections: 5
+    user: username
+    password: password
+

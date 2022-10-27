@@ -1,0 +1,24 @@
+{    
+    "MetricDataQueries":[
+        {
+            "Id": "myRequest",
+            "MetricStat": {
+                "Metric": {
+                    "Namespace": "AWS/RDS",
+                    "MetricName": "AuroraGlobalDBRPOLag",
+                    "Dimensions": [
+                        {
+                           "Name": "DBClusterIdentifier",
+                           "Value": "trade-matching-core-global-cluster"
+                        }
+                    ]
+                },
+                "Period": 3600,
+                "Stat": "Sum",
+                "Unit": "Milliseconds"
+            }
+        }
+    ],
+    "StartTime":"2022-03-20T09:00:0000",
+    "EndTime":"2022-03-23T10:00:0000"
+}

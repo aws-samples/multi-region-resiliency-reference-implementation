@@ -1,0 +1,10 @@
+aws:
+  stateTableName: "ingestionTableTest"
+  settlementStateTableName: ""
+  inboundStream: "trade-matching-ingress-us-east-1-kinesis-stream"
+  settlementInboundStream: ""
+  outboundStream: "trade-matching-core-us-east-1-kinesis-stream"
+  settlementOutboundStream: ""
+  nackStream: ""
+  region: "us-east-1"
+# log level values: trace, debug, info, warn, error, fatal or off

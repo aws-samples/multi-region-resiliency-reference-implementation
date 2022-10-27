@@ -1,0 +1,21 @@
+aws:
+  stateTableName: "trade-matching-out-gateway-trade-dynamodb-store"
+  stateSettlementTableName: "trade-matching-out-gateway-settlement-dynamodb-store"
+  inboundStreamName: "trade-matching-out-gateway-trade-us-east-1-kinesis-stream"
+  inboundSettlementStreamName: "trade-matching-out-gateway-settlement-us-east-1-kinesis-stream"
+  region: "us-east-1"
+settlements:
+  endpoint: "settlement-endpoint"
+  username: "settlement-username"
+  password: "settlement-password"
+  queue: "settlement-queue"
+trades:
+  endpoint: "trades-endpoint"
+  username: "trades-username"
+  password: "trades-password"
+  queue: "trades-queue"
+# log level values: trace, debug, info, warn, error, fatal or off
+logging:
+  level:
+    root: info
+    rapide: info

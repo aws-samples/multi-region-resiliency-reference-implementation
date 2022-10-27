@@ -1,0 +1,49 @@
+logging:
+  level:
+    root: info
+    rapide: info
+spring:
+  main:
+    web-application-type: "none"
+    banner-mode: "off"
+  activemq:
+    broker-url: ssl://xxxxxxx.mq.us-east-1.amazonaws.com:61617
+    pool:
+      enabled: true
+      max-connections: 5
+    user: testing
+    password: changeMe
+trades-generator:
+  batchCount: 10
+  outputDirectory: output
+  generateFiles: false
+  generateQueue: true
+  tradeQuantityMin: 1
+  tradeQuantityMax: 3
+  tradePriceMin: 0.00001
+  tradePriceMax: 8000
+  tradeAllocationsMin: 1
+  tradeAllocationsMax: 10
+  brokerIds:
+    - QABRO010
+    - FIDE0226
+    - MSAI0199
+  investmentManagerIds:
+    - QAINS012
+    - ZAHI723
+    - BKSH7613
+    - DEJO8113
+  tradeIds:
+    - 3500018
+    - 3500017
+    - 3500032
+aws:
+  rout53arcClusterArn: arn:aws:route53-recovery-control::xxxxxxx:cluster/yyyyy
+  region: us-east-1
+  controlPanel: trade-matching-control-panel
+  routingControl: trade-matching-generator
+  destinationQueue: trades
+  queueEndPoint: ssl://xxxxx.elb.us-west-2.amazonaws.com:61617
+  queueUsername: mqadmin
+  queuePassword: changeMe
+

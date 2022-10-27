@@ -1,0 +1,7 @@
+aws:
+  safeStoreTable: "trade-matching-egress-dynamodb-store"
+  settlementSafeStoreTable: "trade-matching-egress-settlement-dynamodb-store"
+  inboundStreamName: "trade-matching-egress-us-east-1-kinesis-stream"
+  outboundStreamName: "trade-matching-out-gateway-us-east-1-kinesis-stream"
+  outboundSettlementStreamName: "trade-matching-out-gateway-settlement-us-east-1-kinesis-stream"
+  region: "us-east-1"

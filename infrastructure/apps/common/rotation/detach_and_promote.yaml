@@ -1,0 +1,462 @@
+description: |-
+  *Runbook for Trade Matching Application Rotation*
+
+  ---
+  # Runbook for Trade Matching Application Rotation
+
+  1. Get Regions
+  2. Turn Primary DNS Arc Control Off
+  3. Wait For MQ To Drain
+  4. Wait For Kinesis Streams To Be Processed 1
+  5. Wait For Dynamo DB To Replicate
+  6. Wait For Aurora Global Database To Replicate
+  7. Turn Primary Queue Arc Control Off
+  8. Turn Primary App Arc Control Off
+  9. Detach Promote Create Attach Aurora Global Database
+  10. Wait For Aurora Global Failover
+  11. Update Database Secret
+  12. Restart ECS Service
+  13. Wait For ECS Service To Start
+  14. Test Delete Records From All DynamoDB Tables
+  15. Turn Secondary App Arc Control On
+  16. Reconcile And Replay Inbound Gateway and Ingestion
+  17. Wait For Inbound Gateway Reconciliation To Complete
+  18. Wait For Kinesis Streams To Be Processed 2
+  19. Reconcile And Replay Ingestion and Matching
+  20. Wait For Ingestion Reconciliation To Complete
+  21. Wait For Kinesis Streams To Be Processed 3
+  22. Reconcile And Replay Matching and Egress
+  23. Wait For Matching Reconciliation To Complete
+  24. Wait For Kinesis Streams To Be Processed 4
+  25. Reconcile And Replay Egress and Outbound Gateway
+  26. Wait For Egress Reconciliation To Complete
+  27. Wait For Kinesis Streams To Be Processed 5
+  28. Turn Secondary Queue Arc Control On
+  29. Turn Secondary DNS Arc Control On
+schemaVersion: '0.3'
+assumeRole: 'arn:aws:iam::285719923712:role/team-app-rotation-automation-role'
+parameters:
+  APP:
+    type: String
+    description: 'Enter Name of the Application: trade-matching or settlement'
+    allowedValues:
+      - trade-matching
+      - settlement
+  TYPE:
+    type: String
+    description: 'Select Type of Rotation: App Rotation or DR'
+    allowedValues:
+      - App Rotation
+      - DR
+  MODE:
+    type: String
+    allowedValues:
+      - test
+      - prod
+    description: 'Select Mode : test or prod'
+mainSteps:
+  - name: GetRegions
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: get_regions
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: us-east-1
+        AWS_REGION1: us-east-1
+        AWS_REGION2: us-west-2
+      Attachment: rotation.py
+    outputs:
+      - Name: ACTIVE_REGION
+        Selector: $.Payload.active_region
+        Type: String
+      - Name: PASSIVE_REGION
+        Selector: $.Payload.passive_region
+        Type: String
+  - name: TurnPrimaryDNSArcControlOff
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: update_arc_control
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        SCOPE: dns
+        STATE: 'Off'
+        AWS_REGION: '{{GetRegions.ACTIVE_REGION}}'
+      Attachment: rotation.py
+  - name: WaitForMQToDrain
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: wait_for_mq_to_drain
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.ACTIVE_REGION}}'
+        COMPONENT: inbound-gateway
+        QUEUE: trades
+      Attachment: rotation.py
+  - name: WaitForKinesisStreamsToBeProcessed1
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: wait_for_kinesis_streams
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.ACTIVE_REGION}}'
+      Attachment: rotation.py
+  - name: WaitForDynamoDBToReplicate
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: wait_for_dynamodb_to_replicate
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.ACTIVE_REGION}}'
+        AWS_RECEIVING_REGION: '{{GetRegions.PASSIVE_REGION}}'
+      Attachment: rotation.py
+  - name: WaitForAuroraGlobalDatabaseToReplicate
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: wait_for_aurora_to_replicate
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.ACTIVE_REGION}}'
+        COMPONENT: core
+      Attachment: rotation.py
+  - name: TurnPrimaryQueueArcControlOff
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: update_arc_control
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        SCOPE: queue
+        STATE: 'Off'
+        AWS_REGION: '{{GetRegions.ACTIVE_REGION}}'
+      Attachment: rotation.py
+  - name: TurnPrimaryAppArcControlOff
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: update_arc_control
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        SCOPE: app
+        STATE: 'Off'
+        AWS_REGION: '{{GetRegions.ACTIVE_REGION}}'
+      Attachment: rotation.py
+  - name: DetachPromoteCreateAttachAuroraGlobalDatabase
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: detach_and_promote_aurora
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.ACTIVE_REGION}}'
+        AWS_PRIMARY_REGION: '{{GetRegions.ACTIVE_REGION}}'
+        AWS_SECONDARY_REGION: '{{GetRegions.PASSIVE_REGION}}'
+        COMPONENT: core
+      Attachment: rotation.py
+    outputs:
+      - Name: GLOBAL_CLUSTER
+        Selector: $.Payload.global_cluster
+        Type: String
+  - name: WaitForAuroraGlobalFailover
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: wait_for_aurora_to_be_available
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.ACTIVE_REGION}}'
+        COMPONENT: core
+      Attachment: rotation.py
+  - name: UpdateDatabaseSecret
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: update_database_secret
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+        COMPONENT: core
+      Attachment: rotation.py
+  - name: RestartECSService
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: restart_ecs_service
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+        COMPONENT: core
+      Attachment: rotation.py
+  - name: WaitForECSServiceToStart
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      Attachment: rotation.py
+      InputPayload:
+        FUNCTION: sleep
+        DURATION: 150
+  - name: TestDeleteRecordsFromAllDynamoDBTables
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: damage_maker
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        MODE: '{{MODE}}'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+      Attachment: rotation.py
+  - name: TurnSecondaryAppArcControlOn
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: update_arc_control
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        SCOPE: app
+        STATE: 'On'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+      Attachment: rotation.py
+  - name: ReconcileAndReplayInboundGatewayAndIngestion
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: reconciliation
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+        RECONCILIATION: InboundIngress
+      Attachment: rotation.py
+  - name: WaitForInboundGatewayReconciliationToComplete
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      Attachment: rotation.py
+      InputPayload:
+        FUNCTION: sleep
+        DURATION: 45
+  - name: WaitForKinesisStreamsToBeProcessed2
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: wait_for_kinesis_streams
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+      Attachment: rotation.py
+  - name: ReconcileAndReplayIngestionAndMatching
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: reconciliation
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+        RECONCILIATION: IngressCore
+      Attachment: rotation.py
+  - name: WaitForIngestionReconciliationToComplete
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      Attachment: rotation.py
+      InputPayload:
+        FUNCTION: sleep
+        DURATION: 45
+  - name: WaitForKinesisStreamsToBeProcessed3
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: wait_for_kinesis_streams
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+      Attachment: rotation.py
+  - name: ReconcileAndReplayMatchingAndEgress
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: reconciliation
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+        RECONCILIATION: CoreEgress
+      Attachment: rotation.py
+  - name: WaitForMatchingReconciliationToComplete
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      Attachment: rotation.py
+      InputPayload:
+        FUNCTION: sleep
+        DURATION: 45
+  - name: WaitForKinesisStreamsToBeProcessed4
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: wait_for_kinesis_streams
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+      Attachment: rotation.py
+  - name: ReconcileAndReplayEgressAndOutboundGateway
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: reconciliation
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+        RECONCILIATION: EgressOutbound
+      Attachment: rotation.py
+  - name: WaitForEgressReconciliationToComplete
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      Attachment: rotation.py
+      InputPayload:
+        FUNCTION: sleep
+        DURATION: 45
+  - name: WaitForKinesisStreamsToBeProcessed5
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: wait_for_kinesis_streams
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+      Attachment: rotation.py
+  - name: ReconcileAndReplayOutboundGatewayAndInboundGatewaySettlement
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      Attachment: rotation.py
+      InputPayload:
+        FUNCTION: reconciliation
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+        RECONCILIATION: OutboundSettlementInbound
+  - name: WaitForOutboundReconciliationToComplete
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      Attachment: rotation.py
+      InputPayload:
+        FUNCTION: sleep
+        DURATION: 45
+  - name: TurnSecondaryQueueArcControlOn
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: update_arc_control
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        SCOPE: queue
+        STATE: 'On'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+      Attachment: rotation.py
+  - name: TurnSecondaryDnsArcControlOn
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      Attachment: rotation.py
+      InputPayload:
+        FUNCTION: update_arc_control
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        SCOPE: dns
+        STATE: 'On'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+files:
+  rotation.py:
+    checksums:
+      sha256: <checksum>

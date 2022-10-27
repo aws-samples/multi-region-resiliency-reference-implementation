@@ -1,0 +1,39 @@
+description: |-
+  *Runbook to Enable VPC Endpoint
+
+  ---
+  # Runbook to Enable VPC Endpoint
+
+  1. Enable VPC Endpoint
+schemaVersion: '0.3'
+assumeRole: 'arn:aws:iam::285719923712:role/team-app-rotation-automation-role'
+parameters:
+  REGION:
+    type: String
+    description: 'Enter Name of AWS Region'
+  APP:
+    type: String
+    description: 'Enter Name of the Application: trade-matching or settlement'
+    allowedValues:
+      - trade-matching
+      - settlement
+  SERVICE:
+    type: String
+    description: 'Enter Name of the Service'
+mainSteps:
+  - name: EnableVPCEndpoint
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: chaos.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: enable_vpc_endpoint
+        REGION: '{{REGION}}'
+        APP: '{{APP}}'
+        SERVICE: '{{SERVICE}}'
+      Attachment: chaos.py
+files:
+  chaos.py:
+    checksums:
+      sha256: <checksum>

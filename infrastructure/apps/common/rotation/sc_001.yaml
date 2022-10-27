@@ -1,0 +1,1123 @@
+description: |-
+  *Runbook for Scenario 001*
+
+  ---
+  # Runbook for Scenario 001
+
+  1. Get Regions
+  2. Turn Trade Generator Arc Control Off 1
+  3. Wait For Trade Generator To Stop1
+  4. Clear Databases
+  5. Turn Trade Generator Arc Control On 1
+  6. Wait For Trade Generator To Publish 1
+  7. Turn Trade Generator Arc Control Off 2
+  8. Wait For Trade Generator To Stop 2
+  9. Get App State 1
+  10. Turn Primary DNS Arc Control Off
+  11. Wait For MQ To Drain
+  12. Wait For Kinesis Streams To Be Processed 1
+  13. Wait For Dynamo DB To Replicate
+  14. Wait For Aurora Global Database To Replicate
+  15. Turn Primary Queue Arc Control Off
+  16. Turn Primary App Arc Control Off
+  17. Failover Aurora Global Database
+  18. Wait For Aurora Global Failover
+  19. Update Database Secret
+  20. Restart ECS Service
+  21. Wait For ECS Service To Start
+  22. Turn Secondary App Arc Control On
+  23. Reconcile And Replay Inbound Gateway and Ingestion
+  24. Wait For Inbound Gateway Reconciliation To Complete
+  25. Wait For Kinesis Streams To Be Processed 2
+  26. Reconcile And Replay Ingestion and Matching
+  27. Wait For Ingestion Reconciliation To Complete
+  28. Wait For Kinesis Streams To Be Processed 3
+  29. Reconcile And Replay Matching and Egress
+  30. Wait For Matching Reconciliation To Complete
+  31. Wait For Kinesis Streams To Be Processed 4
+  32. Reconcile And Replay Egress and Outbound Gateway
+  33. Wait For Egress Reconciliation To Complete
+  34. Wait For Kinesis Streams To Be Processed 5
+  35. Get App State 2
+  36. Compare App States 1
+  37. Turn Secondary Queue Arc Control On
+  38. Turn Secondary DNS Arc Control On
+  39. Turn Trade Generator Arc Control On 2
+  40. Wait For Trade Generator To Publish 2
+  41. Turn Trade Generator Arc Control Off 3
+  42. Wait For Trade Generator To Stop 3
+  43. Get App State 3
+  44. Compare App States 2
+  45. Evaluate Test Case
+schemaVersion: '0.3'
+assumeRole: 'arn:aws:iam::285719923712:role/team-app-rotation-automation-role'
+outputs:
+  - EvaluateTestCase.SUCCESS
+parameters:
+  APP:
+    type: String
+    description: 'Enter Name of the Application: trade-matching or settlement'
+    allowedValues:
+      - trade-matching
+      - settlement
+  TYPE:
+    type: String
+    description: 'Select Type of Rotation: App Rotation or DR'
+    allowedValues:
+      - App Rotation
+      - DR
+  MODE:
+    type: String
+    allowedValues:
+      - test
+      - prod
+    description: 'Select Mode : test or prod'
+mainSteps:
+  - name: GetRegions
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: get_regions
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: us-east-1
+        AWS_REGION1: us-east-1
+        AWS_REGION2: us-west-2
+      Attachment: rotation.py
+    outputs:
+      - Name: ACTIVE_REGION
+        Selector: $.Payload.active_region
+        Type: String
+      - Name: PASSIVE_REGION
+        Selector: $.Payload.passive_region
+        Type: String
+  - name: TurnTradeGeneratorArcControlOff1
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      Attachment: rotation.py
+      InputPayload:
+        FUNCTION: update_arc_control
+        APP: trade-matching
+        TYPE: '{{TYPE}}'
+        SCOPE: generator
+        STATE: 'Off'
+        AWS_REGION: us-east-1
+  - name: WaitForTradeGeneratorToStop1
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: sleep
+        DURATION: 60
+      Attachment: rotation.py
+  - name: ClearDatabases
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      Attachment: rotation.py
+      InputPayload:
+        FUNCTION: clear_databases
+        AWS_REGION: us-east-1
+  - name: TurnTradeGeneratorArcControlOn1
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      Attachment: rotation.py
+      InputPayload:
+        FUNCTION: update_arc_control
+        APP: trade-matching
+        TYPE: '{{TYPE}}'
+        SCOPE: generator
+        STATE: 'On'
+        AWS_REGION: us-east-1
+  - name: WaitForTradeGeneratorToPublish1
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: sleep
+        DURATION: 30
+      Attachment: rotation.py
+  - name: TurnTradeGeneratorArcControlOff2
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      Attachment: rotation.py
+      InputPayload:
+        FUNCTION: update_arc_control
+        APP: trade-matching
+        TYPE: '{{TYPE}}'
+        SCOPE: generator
+        STATE: 'Off'
+        AWS_REGION: us-east-1
+  - name: WaitForTradeGeneratorToStop2
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      Attachment: rotation.py
+      InputPayload:
+        FUNCTION: sleep
+        DURATION: 60
+  - name: GetAppState1
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: get_app_state
+      Script: |-
+        import json
+        from datetime import datetime
+
+        from botocore.exceptions import ClientError
+        import boto3
+        import logging
+        import traceback
+        import base64
+
+
+        def get_app_state(event, context):
+
+            print(datetime.now().strftime("%m/%d/%Y, %H:%M:%S") + " get_app_state Invoked")
+            region = event['AWS_REGION']
+
+            app_state = AppState()
+
+            dynamodb = boto3.resource('dynamodb', region_name=region)
+
+            app_state.tm_inbound_trade = get_dynamodb_table_count(dynamodb, "trade-matching-in-gateway-trade-dynamodb-store")
+            app_state.tm_inbound_settlement = get_dynamodb_table_count(dynamodb, "trade-matching-in-gateway-settlement-dynamodb-store")
+            app_state.tm_ingress_trade = get_dynamodb_table_count(dynamodb, "trade-matching-ingress-trade-dynamodb-store")
+            app_state.tm_ingress_settlement = get_dynamodb_table_count(dynamodb, "trade-matching-ingress-settlement-dynamodb-store")
+            app_state.tm_egress_trade = get_dynamodb_table_count(dynamodb, "trade-matching-egress-trade-dynamodb-store")
+            app_state.tm_egress_settlement = get_dynamodb_table_count(dynamodb, "trade-matching-egress-settlement-dynamodb-store")
+            app_state.tm_outbound_trade = get_dynamodb_table_count(dynamodb, "trade-matching-out-gateway-trade-dynamodb-store")
+            app_state.tm_outbound_settlement = get_dynamodb_table_count(dynamodb, "trade-matching-out-gateway-settlement-dynamodb-store")
+            app_state.sm_inbound_settlement = get_dynamodb_table_count(dynamodb, "settlement-in-gateway-settlement-dynamodb-store")
+            app_state.sm_ingress_settlement = get_dynamodb_table_count(dynamodb, "settlement-ingress-settlement-dynamodb-store")
+            app_state.sm_egress_settlement = get_dynamodb_table_count(dynamodb, "settlement-egress-settlement-dynamodb-store")
+            app_state.sm_outbound_settlement = get_dynamodb_table_count(dynamodb, "settlement-out-gateway-settlement-dynamodb-store")
+
+            return {'app_state': json.dumps(app_state.to_dict(), default=str)}
+
+
+
+        class AppState:
+            """
+            It represents the state of an App.
+            """
+            def __init__(self):
+                """
+                Initializes the App State.
+                """
+                self.tm_inbound_trade = 0
+                self.tm_inbound_settlement = 0
+                self.tm_ingress_trade = 0
+                self.tm_ingress_settlement = 0
+                self.tm_core_trade = 0
+                self.tm_core_allocation = 0
+                self.tm_egress_trade = 0
+                self.tm_egress_settlement = 0
+                self.tm_outbound_trade = 0
+                self.tm_outbound_settlement = 0
+                self.sm_inbound_settlement = 0
+                self.sm_ingress_settlement = 0
+                self.sm_core_settlement = 0
+                self.sm_egress_settlement = 0
+                self.sm_outbound_settlement = 0
+
+            def to_dict(self):
+                return {
+                    'tm_inbound_trade': self.tm_inbound_trade,
+                    'tm_inbound_settlement': self.tm_inbound_settlement,
+                    'tm_ingress_trade': self.tm_ingress_trade,
+                    'tm_ingress_settlement': self.tm_ingress_settlement,
+                    'tm_core_trade': self.tm_core_trade,
+                    'tm_core_allocation': self.tm_core_allocation,
+                    'tm_egress_trade': self.tm_egress_trade,
+                    'tm_egress_settlement': self.tm_egress_settlement,
+                    'tm_outbound_trade': self.tm_outbound_trade,
+                    'tm_outbound_settlement': self.tm_outbound_settlement,
+                    'sm_inbound_settlement': self.sm_inbound_settlement,
+                    'sm_ingress_settlement': self.sm_ingress_settlement,
+                    'sm_core_settlement': self.sm_core_settlement,
+                    'sm_egress_settlement': self.sm_egress_settlement,
+                    'sm_outbound_settlement': self.sm_outbound_settlement
+                }
+
+
+        def get_dynamodb_table_count(dynamodb, dbname):
+
+            try:
+                table = dynamodb.Table(dbname)
+                response = table.scan(Select='COUNT')
+                return response['Count']
+
+            except Exception as error:
+                print("Error running get_dynamodb_table_count", error)
+                traceback.print_exc()
+
+            return 0
+      InputPayload:
+        FUNCTION: get_app_state
+        AWS_REGION: us-east-1
+    outputs:
+      - Name: APP_STATE
+        Selector: $.Payload.app_state
+        Type: String
+  - name: TurnPrimaryDNSArcControlOff
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: update_arc_control
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        SCOPE: dns
+        STATE: 'Off'
+        AWS_REGION: '{{GetRegions.ACTIVE_REGION}}'
+      Attachment: rotation.py
+  - name: WaitForMQToDrain
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: wait_for_mq_to_drain
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.ACTIVE_REGION}}'
+        COMPONENT: inbound-gateway
+        QUEUE: trades
+      Attachment: rotation.py
+  - name: WaitForKinesisStreamsToBeProcessed1
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: wait_for_kinesis_streams
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.ACTIVE_REGION}}'
+      Attachment: rotation.py
+  - name: WaitForDynamoDBToReplicate
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: wait_for_dynamodb_to_replicate
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.ACTIVE_REGION}}'
+        AWS_RECEIVING_REGION: '{{GetRegions.PASSIVE_REGION}}'
+      Attachment: rotation.py
+  - name: WaitForAuroraGlobalDatabaseToReplicate
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: wait_for_aurora_to_replicate
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.ACTIVE_REGION}}'
+        COMPONENT: core
+      Attachment: rotation.py
+  - name: TurnPrimaryQueueArcControlOff
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: update_arc_control
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        SCOPE: queue
+        STATE: 'Off'
+        AWS_REGION: '{{GetRegions.ACTIVE_REGION}}'
+      Attachment: rotation.py
+  - name: TurnPrimaryAppArcControlOff
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: update_arc_control
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        SCOPE: app
+        STATE: 'Off'
+        AWS_REGION: '{{GetRegions.ACTIVE_REGION}}'
+      Attachment: rotation.py
+  - name: FailoverAuroraGlobalDatabase
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: rotate_aurora_global_database
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.ACTIVE_REGION}}'
+        COMPONENT: core
+      Attachment: rotation.py
+    outputs:
+      - Name: GLOBAL_CLUSTER
+        Selector: $.Payload.global_cluster
+        Type: String
+  - name: WaitForAuroraGlobalFailover
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: wait_for_aurora_to_be_available
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.ACTIVE_REGION}}'
+        COMPONENT: core
+      Attachment: rotation.py
+  - name: UpdateDatabaseSecret
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: update_database_secret
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+        COMPONENT: core
+      Attachment: rotation.py
+  - name: RestartECSService
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: restart_ecs_service
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+        COMPONENT: core
+      Attachment: rotation.py
+  - name: WaitForECSServiceToStart
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      Attachment: rotation.py
+      InputPayload:
+        FUNCTION: sleep
+        DURATION: 150
+  - name: TurnSecondaryAppArcControlOn
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: update_arc_control
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        SCOPE: app
+        STATE: 'On'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+      Attachment: rotation.py
+  - name: ReconcileAndReplayInboundGatewayAndIngestion
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: reconciliation
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+        RECONCILIATION: InboundIngress
+      Attachment: rotation.py
+  - name: WaitForInboundGatewayReconciliationToComplete
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      Attachment: rotation.py
+      InputPayload:
+        FUNCTION: sleep
+        DURATION: 45
+  - name: WaitForKinesisStreamsToBeProcessed2
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: wait_for_kinesis_streams
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+      Attachment: rotation.py
+  - name: ReconcileAndReplayIngestionAndMatching
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: reconciliation
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+        RECONCILIATION: IngressCore
+      Attachment: rotation.py
+  - name: WaitForIngestionReconciliationToComplete
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      Attachment: rotation.py
+      InputPayload:
+        FUNCTION: sleep
+        DURATION: 45
+  - name: WaitForKinesisStreamsToBeProcessed3
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: wait_for_kinesis_streams
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+      Attachment: rotation.py
+  - name: ReconcileAndReplayMatchingAndEgress
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: reconciliation
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+        RECONCILIATION: CoreEgress
+      Attachment: rotation.py
+  - name: WaitForMatchingReconciliationToComplete
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      Attachment: rotation.py
+      InputPayload:
+        FUNCTION: sleep
+        DURATION: 45
+  - name: WaitForKinesisStreamsToBeProcessed4
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: wait_for_kinesis_streams
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+      Attachment: rotation.py
+  - name: ReconcileAndReplayEgressAndOutboundGateway
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: reconciliation
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+        RECONCILIATION: EgressOutbound
+      Attachment: rotation.py
+  - name: WaitForEgressReconciliationToComplete
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      Attachment: rotation.py
+      InputPayload:
+        FUNCTION: sleep
+        DURATION: 45
+  - name: WaitForKinesisStreamsToBeProcessed5
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: wait_for_kinesis_streams
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+      Attachment: rotation.py
+  - name: GetAppState2
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: get_app_state
+      Script: |-
+        import json
+        from datetime import datetime
+
+        from botocore.exceptions import ClientError
+        import boto3
+        import logging
+        import traceback
+        import base64
+
+
+        def get_app_state(event, context):
+
+            print(datetime.now().strftime("%m/%d/%Y, %H:%M:%S") + " get_app_state Invoked")
+            region = event['AWS_REGION']
+
+            app_state = AppState()
+
+            dynamodb = boto3.resource('dynamodb', region_name=region)
+
+            app_state.tm_inbound_trade = get_dynamodb_table_count(dynamodb, "trade-matching-in-gateway-trade-dynamodb-store")
+            app_state.tm_inbound_settlement = get_dynamodb_table_count(dynamodb, "trade-matching-in-gateway-settlement-dynamodb-store")
+            app_state.tm_ingress_trade = get_dynamodb_table_count(dynamodb, "trade-matching-ingress-trade-dynamodb-store")
+            app_state.tm_ingress_settlement = get_dynamodb_table_count(dynamodb, "trade-matching-ingress-settlement-dynamodb-store")
+            app_state.tm_egress_trade = get_dynamodb_table_count(dynamodb, "trade-matching-egress-trade-dynamodb-store")
+            app_state.tm_egress_settlement = get_dynamodb_table_count(dynamodb, "trade-matching-egress-settlement-dynamodb-store")
+            app_state.tm_outbound_trade = get_dynamodb_table_count(dynamodb, "trade-matching-out-gateway-trade-dynamodb-store")
+            app_state.tm_outbound_settlement = get_dynamodb_table_count(dynamodb, "trade-matching-out-gateway-settlement-dynamodb-store")
+            app_state.sm_inbound_settlement = get_dynamodb_table_count(dynamodb, "settlement-in-gateway-settlement-dynamodb-store")
+            app_state.sm_ingress_settlement = get_dynamodb_table_count(dynamodb, "settlement-ingress-settlement-dynamodb-store")
+            app_state.sm_egress_settlement = get_dynamodb_table_count(dynamodb, "settlement-egress-settlement-dynamodb-store")
+            app_state.sm_outbound_settlement = get_dynamodb_table_count(dynamodb, "settlement-out-gateway-settlement-dynamodb-store")
+
+            return {'app_state': json.dumps(app_state.to_dict(), default=str)}
+
+
+
+        class AppState:
+            """
+            It represents the state of an App.
+            """
+            def __init__(self):
+                """
+                Initializes the App State.
+                """
+                self.tm_inbound_trade = 0
+                self.tm_inbound_settlement = 0
+                self.tm_ingress_trade = 0
+                self.tm_ingress_settlement = 0
+                self.tm_core_trade = 0
+                self.tm_core_allocation = 0
+                self.tm_egress_trade = 0
+                self.tm_egress_settlement = 0
+                self.tm_outbound_trade = 0
+                self.tm_outbound_settlement = 0
+                self.sm_inbound_settlement = 0
+                self.sm_ingress_settlement = 0
+                self.sm_core_settlement = 0
+                self.sm_egress_settlement = 0
+                self.sm_outbound_settlement = 0
+
+            def to_dict(self):
+                return {
+                    'tm_inbound_trade': self.tm_inbound_trade,
+                    'tm_inbound_settlement': self.tm_inbound_settlement,
+                    'tm_ingress_trade': self.tm_ingress_trade,
+                    'tm_ingress_settlement': self.tm_ingress_settlement,
+                    'tm_core_trade': self.tm_core_trade,
+                    'tm_core_allocation': self.tm_core_allocation,
+                    'tm_egress_trade': self.tm_egress_trade,
+                    'tm_egress_settlement': self.tm_egress_settlement,
+                    'tm_outbound_trade': self.tm_outbound_trade,
+                    'tm_outbound_settlement': self.tm_outbound_settlement,
+                    'sm_inbound_settlement': self.sm_inbound_settlement,
+                    'sm_ingress_settlement': self.sm_ingress_settlement,
+                    'sm_core_settlement': self.sm_core_settlement,
+                    'sm_egress_settlement': self.sm_egress_settlement,
+                    'sm_outbound_settlement': self.sm_outbound_settlement
+                }
+
+
+        def get_dynamodb_table_count(dynamodb, dbname):
+
+            try:
+                table = dynamodb.Table(dbname)
+                response = table.scan(Select='COUNT')
+                return response['Count']
+
+            except Exception as error:
+                print("Error running get_dynamodb_table_count", error)
+                traceback.print_exc()
+
+            return 0
+      InputPayload:
+        FUNCTION: get_app_state
+        AWS_REGION: us-east-1
+    outputs:
+      - Name: APP_STATE
+        Type: String
+        Selector: $.Payload.app_state
+  - name: CompareAppStates1
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: compare_app_states
+      Script: |+
+        import json
+        from datetime import datetime
+
+        from botocore.exceptions import ClientError
+        import boto3
+        import logging
+        import traceback
+        import base64
+
+
+        def compare_app_states(event, context):
+
+            print(datetime.now().strftime("%m/%d/%Y, %H:%M:%S") + " get_app_state Invoked")
+            region = event['AWS_REGION']
+            app_state_1_json = event['APP_STATE_1']
+            app_state_2_json = event['APP_STATE_2']
+
+            app_state_1 = json.loads(app_state_1_json)
+            app_state_2 = json.loads(app_state_2_json)
+
+            result = False
+
+            if (app_state_1["tm_inbound_trade"] == app_state_2["tm_inbound_trade"] and
+                app_state_1["tm_inbound_settlement"] == app_state_2["tm_inbound_settlement"] and
+                app_state_1["tm_ingress_trade"] == app_state_2["tm_ingress_trade"] and
+                app_state_1["tm_ingress_settlement"] == app_state_2["tm_ingress_settlement"] and
+                app_state_1["tm_core_trade"] == app_state_2["tm_core_trade"] and
+                app_state_1["tm_core_allocation"] == app_state_2["tm_core_allocation"] and
+                app_state_1["tm_egress_trade"] == app_state_2["tm_egress_trade"] and
+                app_state_1["tm_egress_settlement"] == app_state_2["tm_egress_settlement"] and
+                app_state_1["tm_outbound_trade"] == app_state_2["tm_outbound_trade"] and
+                app_state_1["tm_outbound_settlement"] == app_state_2["tm_outbound_settlement"] and
+                app_state_1["sm_inbound_settlement"] == app_state_2["sm_inbound_settlement"] and
+                app_state_1["sm_ingress_settlement"] == app_state_2["sm_ingress_settlement"] and
+                app_state_1["sm_core_settlement"] == app_state_2["sm_core_settlement"] and
+                app_state_1["sm_egress_settlement"] == app_state_2["sm_egress_settlement"] and
+                app_state_1["sm_outbound_settlement"] == app_state_2["sm_outbound_settlement"]):
+                result = True
+            else:
+                result = False
+
+            return {'result': result}
+
+
+        class AppState:
+            """
+            It represents the state of an App.
+            """
+            def __init__(self):
+                """
+                Initializes the App State.
+                """
+                self.tm_inbound_trade = 0
+                self.tm_inbound_settlement = 0
+                self.tm_ingress_trade = 0
+                self.tm_ingress_settlement = 0
+                self.tm_core_trade = 0
+                self.tm_core_allocation = 0
+                self.tm_egress_trade = 0
+                self.tm_egress_settlement = 0
+                self.tm_outbound_trade = 0
+                self.tm_outbound_settlement = 0
+                self.sm_inbound_settlement = 0
+                self.sm_ingress_settlement = 0
+                self.sm_core_settlement = 0
+                self.sm_egress_settlement = 0
+                self.sm_outbound_settlement = 0
+
+            def to_dict(self):
+                return {
+                    'tm_inbound_trade': self.tm_inbound_trade,
+                    'tm_inbound_settlement': self.tm_inbound_settlement,
+                    'tm_ingress_trade': self.tm_ingress_trade,
+                    'tm_ingress_settlement': self.tm_ingress_settlement,
+                    'tm_core_trade': self.tm_core_trade,
+                    'tm_core_allocation': self.tm_core_allocation,
+                    'tm_egress_trade': self.tm_egress_trade,
+                    'tm_egress_settlement': self.tm_egress_settlement,
+                    'tm_outbound_trade': self.tm_outbound_trade,
+                    'tm_outbound_settlement': self.tm_outbound_settlement,
+                    'sm_inbound_settlement': self.sm_inbound_settlement,
+                    'sm_ingress_settlement': self.sm_ingress_settlement,
+                    'sm_core_settlement': self.sm_core_settlement,
+                    'sm_egress_settlement': self.sm_egress_settlement,
+                    'sm_outbound_settlement': self.sm_outbound_settlement
+                }
+
+
+
+
+
+
+      Attachment: rotation.py
+      InputPayload:
+        FUNCTION: compare_app_states
+        AWS_REGION: us-east-1
+        APP_STATE_1: '{{GetAppState1.APP_STATE}}'
+        APP_STATE_2: '{{GetAppState2.APP_STATE}}'
+    outputs:
+      - Name: RESULT
+        Selector: $.Payload.result
+        Type: Boolean
+  - name: TurnSecondaryQueueArcControlOn
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      InputPayload:
+        FUNCTION: update_arc_control
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        SCOPE: queue
+        STATE: 'On'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+      Attachment: rotation.py
+  - name: TurnSecondaryDnsArcControlOn
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      Attachment: rotation.py
+      InputPayload:
+        FUNCTION: update_arc_control
+        APP: '{{APP}}'
+        TYPE: '{{TYPE}}'
+        SCOPE: dns
+        STATE: 'On'
+        AWS_REGION: '{{GetRegions.PASSIVE_REGION}}'
+  - name: TurnTradeGeneratorArcControlOn2
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      Attachment: rotation.py
+      InputPayload:
+        FUNCTION: update_arc_control
+        APP: trade-matching
+        TYPE: '{{TYPE}}'
+        SCOPE: generator
+        STATE: 'On'
+        AWS_REGION: us-east-1
+  - name: WaitForTradeGeneratorToPublish2
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      Attachment: rotation.py
+      InputPayload:
+        FUNCTION: sleep
+        DURATION: 30
+  - name: TurnTradeGeneratorArcControlOff3
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      Attachment: rotation.py
+      InputPayload:
+        FUNCTION: update_arc_control
+        APP: trade-matching
+        TYPE: '{{TYPE}}'
+        SCOPE: generator
+        STATE: 'Off'
+        AWS_REGION: us-east-1
+  - name: WaitForTradeGeneratorToStop3
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: rotation.invoke
+      Script: ''
+      Attachment: rotation.py
+      InputPayload:
+        FUNCTION: sleep
+        DURATION: 30
+  - name: GetAppState3
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: get_app_state
+      Script: |-
+        import json
+        from datetime import datetime
+
+        from botocore.exceptions import ClientError
+        import boto3
+        import logging
+        import traceback
+        import base64
+
+
+        def get_app_state(event, context):
+
+            print(datetime.now().strftime("%m/%d/%Y, %H:%M:%S") + " get_app_state Invoked")
+            region = event['AWS_REGION']
+
+            app_state = AppState()
+
+            dynamodb = boto3.resource('dynamodb', region_name=region)
+
+            app_state.tm_inbound_trade = get_dynamodb_table_count(dynamodb, "trade-matching-in-gateway-trade-dynamodb-store")
+            app_state.tm_inbound_settlement = get_dynamodb_table_count(dynamodb, "trade-matching-in-gateway-settlement-dynamodb-store")
+            app_state.tm_ingress_trade = get_dynamodb_table_count(dynamodb, "trade-matching-ingress-trade-dynamodb-store")
+            app_state.tm_ingress_settlement = get_dynamodb_table_count(dynamodb, "trade-matching-ingress-settlement-dynamodb-store")
+            app_state.tm_egress_trade = get_dynamodb_table_count(dynamodb, "trade-matching-egress-trade-dynamodb-store")
+            app_state.tm_egress_settlement = get_dynamodb_table_count(dynamodb, "trade-matching-egress-settlement-dynamodb-store")
+            app_state.tm_outbound_trade = get_dynamodb_table_count(dynamodb, "trade-matching-out-gateway-trade-dynamodb-store")
+            app_state.tm_outbound_settlement = get_dynamodb_table_count(dynamodb, "trade-matching-out-gateway-settlement-dynamodb-store")
+            app_state.sm_inbound_settlement = get_dynamodb_table_count(dynamodb, "settlement-in-gateway-settlement-dynamodb-store")
+            app_state.sm_ingress_settlement = get_dynamodb_table_count(dynamodb, "settlement-ingress-settlement-dynamodb-store")
+            app_state.sm_egress_settlement = get_dynamodb_table_count(dynamodb, "settlement-egress-settlement-dynamodb-store")
+            app_state.sm_outbound_settlement = get_dynamodb_table_count(dynamodb, "settlement-out-gateway-settlement-dynamodb-store")
+
+            return {'app_state': json.dumps(app_state.to_dict(), default=str)}
+
+
+
+        class AppState:
+            """
+            It represents the state of an App.
+            """
+            def __init__(self):
+                """
+                Initializes the App State.
+                """
+                self.tm_inbound_trade = 0
+                self.tm_inbound_settlement = 0
+                self.tm_ingress_trade = 0
+                self.tm_ingress_settlement = 0
+                self.tm_core_trade = 0
+                self.tm_core_allocation = 0
+                self.tm_egress_trade = 0
+                self.tm_egress_settlement = 0
+                self.tm_outbound_trade = 0
+                self.tm_outbound_settlement = 0
+                self.sm_inbound_settlement = 0
+                self.sm_ingress_settlement = 0
+                self.sm_core_settlement = 0
+                self.sm_egress_settlement = 0
+                self.sm_outbound_settlement = 0
+
+            def to_dict(self):
+                return {
+                    'tm_inbound_trade': self.tm_inbound_trade,
+                    'tm_inbound_settlement': self.tm_inbound_settlement,
+                    'tm_ingress_trade': self.tm_ingress_trade,
+                    'tm_ingress_settlement': self.tm_ingress_settlement,
+                    'tm_core_trade': self.tm_core_trade,
+                    'tm_core_allocation': self.tm_core_allocation,
+                    'tm_egress_trade': self.tm_egress_trade,
+                    'tm_egress_settlement': self.tm_egress_settlement,
+                    'tm_outbound_trade': self.tm_outbound_trade,
+                    'tm_outbound_settlement': self.tm_outbound_settlement,
+                    'sm_inbound_settlement': self.sm_inbound_settlement,
+                    'sm_ingress_settlement': self.sm_ingress_settlement,
+                    'sm_core_settlement': self.sm_core_settlement,
+                    'sm_egress_settlement': self.sm_egress_settlement,
+                    'sm_outbound_settlement': self.sm_outbound_settlement
+                }
+
+
+        def get_dynamodb_table_count(dynamodb, dbname):
+
+            try:
+                table = dynamodb.Table(dbname)
+                response = table.scan(Select='COUNT')
+                return response['Count']
+
+            except Exception as error:
+                print("Error running get_dynamodb_table_count", error)
+                traceback.print_exc()
+
+            return 0
+      Attachment: rotation.py
+      InputPayload:
+        FUNCTION: get_app_state
+        AWS_REGION: us-east-1
+    outputs:
+      - Name: APP_STATE
+        Selector: $.Payload.app_state
+        Type: String
+  - name: CompareAppStates2
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: compare_app_states
+      Script: |
+        import json
+        from datetime import datetime
+
+        from botocore.exceptions import ClientError
+        import boto3
+        import logging
+        import traceback
+        import base64
+
+
+        def compare_app_states(event, context):
+
+            print(datetime.now().strftime("%m/%d/%Y, %H:%M:%S") + " get_app_state Invoked")
+            region = event['AWS_REGION']
+            app_state_1_json = event['APP_STATE_1']
+            app_state_2_json = event['APP_STATE_2']
+
+            app_state_1 = json.loads(app_state_1_json)
+            app_state_2 = json.loads(app_state_2_json)
+
+            result = False
+
+            if (app_state_1["tm_inbound_trade"] == app_state_2["tm_inbound_trade"] and
+                app_state_1["tm_inbound_settlement"] == app_state_2["tm_inbound_settlement"] and
+                app_state_1["tm_ingress_trade"] == app_state_2["tm_ingress_trade"] and
+                app_state_1["tm_ingress_settlement"] == app_state_2["tm_ingress_settlement"] and
+                app_state_1["tm_core_trade"] == app_state_2["tm_core_trade"] and
+                app_state_1["tm_core_allocation"] == app_state_2["tm_core_allocation"] and
+                app_state_1["tm_egress_trade"] == app_state_2["tm_egress_trade"] and
+                app_state_1["tm_egress_settlement"] == app_state_2["tm_egress_settlement"] and
+                app_state_1["tm_outbound_trade"] == app_state_2["tm_outbound_trade"] and
+                app_state_1["tm_outbound_settlement"] == app_state_2["tm_outbound_settlement"] and
+                app_state_1["sm_inbound_settlement"] == app_state_2["sm_inbound_settlement"] and
+                app_state_1["sm_ingress_settlement"] == app_state_2["sm_ingress_settlement"] and
+                app_state_1["sm_core_settlement"] == app_state_2["sm_core_settlement"] and
+                app_state_1["sm_egress_settlement"] == app_state_2["sm_egress_settlement"] and
+                app_state_1["sm_outbound_settlement"] == app_state_2["sm_outbound_settlement"]):
+                result = True
+            else:
+                result = False
+
+            return {'result': result}
+
+
+        class AppState:
+            """
+            It represents the state of an App.
+            """
+            def __init__(self):
+                """
+                Initializes the App State.
+                """
+                self.tm_inbound_trade = 0
+                self.tm_inbound_settlement = 0
+                self.tm_ingress_trade = 0
+                self.tm_ingress_settlement = 0
+                self.tm_core_trade = 0
+                self.tm_core_allocation = 0
+                self.tm_egress_trade = 0
+                self.tm_egress_settlement = 0
+                self.tm_outbound_trade = 0
+                self.tm_outbound_settlement = 0
+                self.sm_inbound_settlement = 0
+                self.sm_ingress_settlement = 0
+                self.sm_core_settlement = 0
+                self.sm_egress_settlement = 0
+                self.sm_outbound_settlement = 0
+
+            def to_dict(self):
+                return {
+                    'tm_inbound_trade': self.tm_inbound_trade,
+                    'tm_inbound_settlement': self.tm_inbound_settlement,
+                    'tm_ingress_trade': self.tm_ingress_trade,
+                    'tm_ingress_settlement': self.tm_ingress_settlement,
+                    'tm_core_trade': self.tm_core_trade,
+                    'tm_core_allocation': self.tm_core_allocation,
+                    'tm_egress_trade': self.tm_egress_trade,
+                    'tm_egress_settlement': self.tm_egress_settlement,
+                    'tm_outbound_trade': self.tm_outbound_trade,
+                    'tm_outbound_settlement': self.tm_outbound_settlement,
+                    'sm_inbound_settlement': self.sm_inbound_settlement,
+                    'sm_ingress_settlement': self.sm_ingress_settlement,
+                    'sm_core_settlement': self.sm_core_settlement,
+                    'sm_egress_settlement': self.sm_egress_settlement,
+                    'sm_outbound_settlement': self.sm_outbound_settlement
+                }
+      Attachment: rotation.py
+      InputPayload:
+        FUNCTION: compare_app_states
+        AWS_REGION: us-east-1
+        APP_STATE_1: '{{GetAppState2.APP_STATE}}'
+        APP_STATE_2: '{{GetAppState3.APP_STATE}}'
+    outputs:
+      - Name: RESULT
+        Selector: $.Payload.message
+        Type: Boolean
+  - name: EvaluateTestCase
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.8
+      Handler: script_handler
+      Script: |-
+        def script_handler(events, context):
+          rpo_is_zero = events['RPO_IS_ZERO']
+          matches_after_rotation = events['MATCHES_AFTER_ROTATION']
+          success = False
+          if (rpo_is_zero and not matches_after_rotation):
+            success = True
+          else:
+            success = False
+
+          return {
+            'success': success
+          }
+      InputPayload:
+        RPO_IS_ZERO: '{{CompareAppStates1.RESULT}}'
+        MATCHES_AFTER_ROTATION: '{{CompareAppStates2.RESULT}}'
+    outputs:
+      - Name: SUCCESS
+        Selector: $.Payload.success
+        Type: Boolean
+files:
+  rotation.py:
+    checksums:
+      sha256: <checksum>

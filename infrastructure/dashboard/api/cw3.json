@@ -1,0 +1,192 @@
+{    
+    "MetricDataQueries":[
+        {
+            "Id": "dynamodb_query_1",
+            "MetricStat": {
+                "Metric": {
+                    "Namespace": "AWS/DynamoDB",
+                    "MetricName": "ReplicationLatency",
+                    "Dimensions": [
+                                {
+                                    "Name": "TableName",
+                                    "Value": "trade-matching-in-gateway-trade-dynamodb-store"
+                                },
+                                {
+                                    "Name": "ReceivingRegion",
+                                    "Value": "us-west-2"                                }
+                            ]
+                },
+                "Period": 60,
+                "Stat": "Average",
+                "Unit": "Milliseconds"
+            }
+        },
+        {
+            "Id": "dynamodb_query_2",
+            "MetricStat": {
+                "Metric": {
+                    "Namespace": "AWS/DynamoDB",
+                    "MetricName": "ReplicationLatency",
+                    "Dimensions": [
+                                {
+                                    "Name": "TableName",
+                                    "Value": "trade-matching-in-gateway-settlement-dynamodb-store"
+                                },
+                                {
+                                    "Name": "ReceivingRegion",
+                                    "Value": "us-west-2"                                }
+                            ]
+                },
+                "Period": 60,
+                "Stat": "Average",
+                "Unit": "Milliseconds"
+            }
+        },
+        {
+            "Id": "dynamodb_query_3",
+            "MetricStat": {
+                "Metric": {
+                    "Namespace": "AWS/DynamoDB",
+                    "MetricName": "ReplicationLatency",
+                    "Dimensions": [
+                                {
+                                    "Name": "TableName",
+                                    "Value": "trade-matching-ingress-trade-dynamodb-store"
+                                },
+                                {
+                                    "Name": "ReceivingRegion",
+                                    "Value": "us-west-2"                                }
+                            ]
+                },
+                "Period": 60,
+                "Stat": "Average",
+                "Unit": "Milliseconds"
+            }
+        },
+        {
+            "Id": "dynamodb_query_4",
+            "MetricStat": {
+                "Metric": {
+                    "Namespace": "AWS/DynamoDB",
+                    "MetricName": "ReplicationLatency",
+                    "Dimensions": [
+                                {
+                                    "Name": "TableName",
+                                    "Value": "trade-matching-ingress-settlement-dynamodb-store"
+                                },
+                                {
+                                    "Name": "ReceivingRegion",
+                                    "Value": "us-west-2"                                }
+                            ]
+                },
+                "Period": 60,
+                "Stat": "Average",
+                "Unit": "Milliseconds"
+            }
+        },
+        {
+            "Id": "dynamodb_query_5",
+            "MetricStat": {
+                "Metric": {
+                    "Namespace": "AWS/DynamoDB",
+                    "MetricName": "ReplicationLatency",
+                    "Dimensions": [
+                                {
+                                    "Name": "TableName",
+                                    "Value": "trade-matching-egress-trade-dynamodb-store"
+                                },
+                                {
+                                    "Name": "ReceivingRegion",
+                                    "Value": "us-west-2"                                }
+                            ]
+                },
+                "Period": 60,
+                "Stat": "Average",
+                "Unit": "Milliseconds"
+            }
+        },
+        {
+            "Id": "dynamodb_query_6",
+            "MetricStat": {
+                "Metric": {
+                    "Namespace": "AWS/DynamoDB",
+                    "MetricName": "ReplicationLatency",
+                    "Dimensions": [
+                                {
+                                    "Name": "TableName",
+                                    "Value": "trade-matching-egress-settlement-dynamodb-store"
+                                },
+                                {
+                                    "Name": "ReceivingRegion",
+                                    "Value": "us-west-2"                                }
+                            ]
+                },
+                "Period": 60,
+                "Stat": "Average",
+                "Unit": "Milliseconds"
+            }
+        },
+        {
+            "Id": "dynamodb_query_7",
+            "MetricStat": {
+                "Metric": {
+                    "Namespace": "AWS/DynamoDB",
+                    "MetricName": "ReplicationLatency",
+                    "Dimensions": [
+                                {
+                                    "Name": "TableName",
+                                    "Value": "trade-matching-out-gateway-trade-dynamodb-store"
+                                },
+                                {
+                                    "Name": "ReceivingRegion",
+                                    "Value": "us-west-2"                                }
+                            ]
+                },
+                "Period": 60,
+                "Stat": "Average",
+                "Unit": "Milliseconds"
+            }
+        },
+        {
+            "Id": "dynamodb_query_8",
+            "MetricStat": {
+                "Metric": {
+                    "Namespace": "AWS/DynamoDB",
+                    "MetricName": "ReplicationLatency",
+                    "Dimensions": [
+                                {
+                                    "Name": "TableName",
+                                    "Value": "trade-matching-out-gateway-settlement-dynamodb-store"
+                                },
+                                {
+                                    "Name": "ReceivingRegion",
+                                    "Value": "us-west-2"                                }
+                            ]
+                },
+                "Period": 60,
+                "Stat": "Average",
+                "Unit": "Milliseconds"
+            }
+        },
+        {
+            "Id": "rds_query",
+            "MetricStat": {
+                "Metric": {
+                    "Namespace": "AWS/RDS",
+                    "MetricName": "AuroraGlobalDBRPOLag",
+                    "Dimensions": [
+                        {
+                           "Name": "DBClusterIdentifier",
+                           "Value": "trade-matching-core-global-cluster"
+                        }
+                    ]
+                },
+                "Period": 60,
+                "Stat": "Average",
+                "Unit": "Milliseconds"
+            }
+        }
+    ],
+    "StartTime":"2022-03-22T00:00:0000",
+    "EndTime":"2022-03-23T10:00:0000"
+}
