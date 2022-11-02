@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT-0
 
 import logging
+from unittest import result
 import boto3
 from datetime import datetime, timedelta
 import time
@@ -45,7 +46,7 @@ def inbound_ingress_reconciliation(region, params):
                                                                  params["rollback_time_in_sec"],
                                                                  params["dynamodb_tm_inbound_t_table"],
                                                                  region)
-
+        logging.info("Recovered {0} Messages from Origin".format(len(source_full_records)))
         distribute_messages_to_kinesis(stream_name=params["kinesis_stream_ingress_t"],
                                        region=region,
                                        records=missing_items,
@@ -594,123 +595,98 @@ def get_partition_dates(rollback_time_in_sec: str) -> []:
     return partition_dates
 
 
+def dynamodb_query_with_paging(dynamodb_client,params):
+    results = []
+    response = dynamodb_client.query(**params)
+    if response["Count"] > 0:
+        # extract current response results
+        results.extend(response['Items'])
+        while 'LastEvaluatedKey' in response:
+            key = response['LastEvaluatedKey']
+            params["ExclusiveStartKey"] = key
+            response = dynamodb_client.query(**params) #,ExclusiveStartKey=key    
+            if response["Count"] > 0:
+                # extract current response results
+                results.extend(response['Items'])
+    return results
+
+
 def query_source_dynamodb_trades(rollback_time_in_sec: str, table_name: str, region: str):
     partition_dates = get_partition_dates(rollback_time_in_sec)
     dynamodb_client = boto3.client("dynamodb", region_name=region)
     start_time = str(int(time.time() - int(rollback_time_in_sec)))
-    results = []
     for day in partition_dates:
         logging.info("Querying {0} for : {1}".format(table_name, day))
-        response = dynamodb_client.query(
-            TableName=table_name,
-            IndexName="currentDate",
-            KeyConditionExpression='#currentDate = :currentDate and #timestamp > :timestamp',
-            ExpressionAttributeNames={"#currentDate": "currentDate", "#timestamp": "timestamp"},
-            ExpressionAttributeValues={
+        params = {
+            "TableName": table_name,
+            "IndexName": "currentDate",
+            "KeyConditionExpression":"#currentDate = :currentDate and #timestamp > :timestamp",
+            "ExpressionAttributeNames":{
+                "#currentDate": "currentDate", "#timestamp": "timestamp"
+                },
+            "ExpressionAttributeValues":{
                 ':currentDate': {'S': day},
                 ":timestamp": {"N": start_time}
             },
-            ProjectionExpression="id",
-            ScanIndexForward=False
-            # add filter - description is not there for dejon future!
-        )
-        # logging.info(response)
-        if response["Count"] > 0:
-            results.extend(response['Items'])
+            "ProjectionExpression":"id",
+            "ScanIndexForward": False
+        }
+        #logging.info(params)
+        response = dynamodb_query_with_paging(dynamodb_client, params)
+        
     ids = []
-    for item in results:
+    for item in response:
         ids.append(item["id"]["S"])
     return ids
 
 
 def query_source_dynamodb_full_records(ids: [], rollback_time_in_sec: str, table_name: str, region: str):
     results = []
-    partition_dates = get_partition_dates(rollback_time_in_sec)
-    batch_max = 100
-    batch_ids = []
-    batch_id = 1
+    dynamodb_client = boto3.client("dynamodb", region_name=region)
     for trx_id in ids:
-        batch_ids.append(trx_id)
-        if len(batch_ids) == batch_max:
-            processed_batch = query_dynamo_db_batch(batch_id, batch_ids, partition_dates, rollback_time_in_sec, table_name, region, True)
-            results.extend(processed_batch)
-            batch_id = batch_id + 1
-            batch_ids.clear()
-        else:
-            continue
-
-    if len(batch_ids) > 0:
-        results.extend(query_dynamo_db_batch(batch_id, batch_ids, partition_dates, rollback_time_in_sec, table_name, region, True))
+        params = {
+            "TableName": table_name,
+            "KeyConditionExpression":'id = :id',
+            "ExpressionAttributeValues":{
+                ":id": {"S": trx_id }},
+            "ScanIndexForward": False
+        }
+        
+        #logging.info(params)
+        response = dynamodb_query_with_paging(dynamodb_client, params)
+        if len(response) == 1:
+            results.append(response[0])
     return results
 
 
 def query_destination_dynamodb_trades(source_ids: [], rollback_time_in_sec: str, table_name: str, region: str):
     results = []
-    batch_max = 100
-    batch_ids = []
     partition_dates = get_partition_dates(rollback_time_in_sec)
-    batch_id = 1
-    # split the ids to batches to run efficient queries
-    for trx_id in source_ids:
-        batch_ids.append(trx_id)
-        if len(batch_ids) == batch_max:
-            processed_batch = query_dynamo_db_batch(batch_id, batch_ids, partition_dates, rollback_time_in_sec, table_name, region)
-            results.extend(processed_batch)
-            batch_id = batch_id + 1
-            batch_ids.clear()
-        else:
-            continue
-
-    if len(batch_ids) > 0:
-        results.extend(query_dynamo_db_batch(batch_id, batch_ids, partition_dates, rollback_time_in_sec, table_name, region))
+    dynamodb_client = boto3.client("dynamodb", region_name=region)
+    start_time = str(int(time.time() - int(rollback_time_in_sec)))
+    for day in partition_dates:
+        logging.info("Querying Destination {0} for : {1}".format(table_name, day))
+        params = {
+            "TableName": table_name,
+            "IndexName": "currentDate",
+            "KeyConditionExpression":"#currentDate = :currentDate and #timestamp > :timestamp",
+            "ExpressionAttributeNames":{
+                "#currentDate": "currentDate", "#timestamp": "timestamp"
+                },
+            "ExpressionAttributeValues":{
+                ':currentDate': {'S': day},
+                ":timestamp": {"N": start_time}
+            },
+            "ProjectionExpression":"id",
+            "ScanIndexForward": False
+        }
+        #logging.info(params)
+        response = dynamodb_query_with_paging(dynamodb_client, params)
+        for item in response:
+            if item["id"]["S"] in source_ids:
+                results.append(item["id"]["S"])
 
     return find_diff(source_ids, results)
-
-
-def query_dynamo_db_batch(batch_id, ids: [], partition_dates: [], rollback_time_in_sec, table_name, region, full_mode=False):
-    results = []
-    ids_template = []
-    expression_attribute_values = {}
-    start_time = str(int(time.time() - int(rollback_time_in_sec)))
-    for i in range(len(ids)):
-        current_id = ":id" + str(i)
-        ids_template.append(current_id)
-        expression_attribute_values[current_id] = {"S": ids[i]}
-    expression_attribute_values[":timestamp"] = {"N": start_time}
-    dynamodb_client = boto3.client("dynamodb", region_name=region)
-    # breakpoint()
-    for day in partition_dates:
-        logging.info("Query destination table {0} with batch {1} against partition {2}".format(table_name, batch_id, day))
-        expression_attribute_values[":currentDate"] = {'S': day}
-        if full_mode:
-            response = dynamodb_client.query(
-                TableName=table_name,
-                IndexName="currentDate",
-                KeyConditionExpression='#currentDate = :currentDate and #timestamp > :timestamp',
-                ExpressionAttributeNames={"#currentDate": "currentDate", "#timestamp": "timestamp"},
-                FilterExpression="id IN (" + ','.join(ids_template) + ")",
-                ExpressionAttributeValues=expression_attribute_values,
-                ScanIndexForward=False
-            )
-            if response["Count"] > 0:
-                for found_id in response["Items"]:
-                    results.append(found_id)
-        else:
-            response = dynamodb_client.query(
-                TableName=table_name,
-                IndexName="currentDate",
-                KeyConditionExpression='#currentDate = :currentDate and #timestamp > :timestamp',
-                ExpressionAttributeNames={"#currentDate": "currentDate", "#timestamp": "timestamp"},
-                FilterExpression="id IN (" + ','.join(ids_template) + ")",
-                ProjectionExpression="id",
-                ExpressionAttributeValues=expression_attribute_values,
-                ScanIndexForward=False
-            )
-            if response["Count"] > 0:
-                for found_id in response["Items"]:
-                    results.append(found_id['id']['S'])
-
-    return results
 
 
 def query_destination_rds_trades(source_trades: [], db_params: dict, region: str):
