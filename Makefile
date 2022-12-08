@@ -1,7 +1,7 @@
 REGION=us-east-1
 .DEFAULT_GOAL := deploy-all
 MAKE=/usr/bin/make
-ACCOUNT=690047714878
+ACCOUNT=**********
 REGIONS="us-east-1 us-west-2"
 ROLE=deployment-admin-role
 
