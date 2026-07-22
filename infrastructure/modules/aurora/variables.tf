@@ -35,11 +35,11 @@ variable "DB_ENGINE" {
 variable "DB_ENGINE_VERSION" {
 
   type = string
-  default = "11.9"
+  default = "16.13"
 }
 
 variable "DB_INSTANCE_CLASS" {
 
   type = string
-  default = "db.r4.large"
+  default = "db.r6g.large"
 }

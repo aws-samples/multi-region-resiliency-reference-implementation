@@ -66,5 +66,5 @@ variable "ENGINE_TYPE" {
 variable "ENGINE_VERSION" {
 
   type = string
-  default = "5.16.4"
+  default = "5.18"
 }

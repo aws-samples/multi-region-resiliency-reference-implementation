@@ -114,11 +114,13 @@ resource "aws_acmpca_certificate" "subordinate-certificate" {
   certificate_signing_request = aws_acmpca_certificate_authority.subordinate-ca.certificate_signing_request
   signing_algorithm           = var.SIGNING_ALGORITHM
 
+  depends_on = [aws_acmpca_certificate_authority_certificate.root-ca-certificate]
+
   template_arn = "arn:${data.aws_partition.current.partition}:acm-pca:::template/SubordinateCACertificate_PathLen0/V1"
 
   validity {
-    type  = "MONTHS"
-    value = 10
+    type  = "YEARS"
+    value = 5
   }
 }
 

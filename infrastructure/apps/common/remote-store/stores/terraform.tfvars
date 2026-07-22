@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT-0
 
 AWS_REGION = "us-east-1"
-ENV = "awsd1"
+ENV = "virp1"
 
 
 

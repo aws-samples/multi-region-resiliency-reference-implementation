@@ -44,13 +44,6 @@ resource "aws_security_group" "elb-sg" {
     cidr_blocks       = [var.CIDR]
   }
 
-  ingress {
-    description       = "HTTP Port from AWS Corp"
-    from_port         = 80
-    to_port           = 80
-    protocol          = "tcp"
-    prefix_list_ids   = (var.AWS_REGION == "us-east-1")?["pl-4e2ece27"]:["pl-5aa44133"]
-  }
 
   ingress {
     description       = "HTTPS Port from VPC"
@@ -60,13 +53,6 @@ resource "aws_security_group" "elb-sg" {
     cidr_blocks       = [var.CIDR]
   }
 
-  ingress {
-    description       = "HTTPS Port from AWS Corp"
-    from_port         = 443
-    to_port           = 443
-    protocol          = "tcp"
-    prefix_list_ids   = (var.AWS_REGION == "us-east-1")?["pl-4e2ece27"]:["pl-5aa44133"]
-  }
 
   egress {
     from_port   = 0
@@ -97,13 +83,6 @@ resource "aws_security_group" "ecs-sg" {
     cidr_blocks       = [var.CIDR]
   }
 
-  ingress {
-    description       = "SSH Port from AWS Corp"
-    from_port         = 22
-    to_port           = 22
-    protocol          = "tcp"
-    prefix_list_ids   = (var.AWS_REGION == "us-east-1")?["pl-4e2ece27"]:["pl-5aa44133"]
-  }
 
   ingress {
     description       = "HTTP Port from VPC"
@@ -113,13 +92,6 @@ resource "aws_security_group" "ecs-sg" {
     cidr_blocks       = [var.CIDR]
   }
 
-  ingress {
-    description       = "HTTP Port from AWS Corp"
-    from_port         = 80
-    to_port           = 80
-    protocol          = "tcp"
-    prefix_list_ids   = (var.AWS_REGION == "us-east-1")?["pl-4e2ece27"]:["pl-5aa44133"]
-  }
 
   ingress {
     description       = "HTTPS Port from VPC"
@@ -129,13 +101,6 @@ resource "aws_security_group" "ecs-sg" {
     cidr_blocks       = [var.CIDR]
   }
 
-  ingress {
-    description       = "HTTPS Port from AWS Corp"
-    from_port         = 443
-    to_port           = 443
-    protocol          = "tcp"
-    prefix_list_ids   = (var.AWS_REGION == "us-east-1")?["pl-4e2ece27"]:["pl-5aa44133"]
-  }
 
   ingress {
     description       = "All ports from ELB"
@@ -175,13 +140,6 @@ resource "aws_security_group" "dashboard-lambda-sg" {
     cidr_blocks       = [var.CIDR]
   }
 
-  ingress {
-    description       = "SSH Port from AWS Corp"
-    from_port         = 22
-    to_port           = 22
-    protocol          = "tcp"
-    prefix_list_ids   = (var.AWS_REGION == "us-east-1")?["pl-4e2ece27"]:["pl-5aa44133"]
-  }
 
   ingress {
     description       = "HTTP Port from VPC"
@@ -191,13 +149,6 @@ resource "aws_security_group" "dashboard-lambda-sg" {
     cidr_blocks       = [var.CIDR]
   }
 
-  ingress {
-    description       = "HTTP Port from AWS Corp"
-    from_port         = 80
-    to_port           = 80
-    protocol          = "tcp"
-    prefix_list_ids   = (var.AWS_REGION == "us-east-1")?["pl-4e2ece27"]:["pl-5aa44133"]
-  }
 
   ingress {
     description       = "HTTPS Port from VPC"
@@ -207,13 +158,6 @@ resource "aws_security_group" "dashboard-lambda-sg" {
     cidr_blocks       = [var.CIDR]
   }
 
-  ingress {
-    description       = "HTTPS Port from AWS Corp"
-    from_port         = 443
-    to_port           = 443
-    protocol          = "tcp"
-    prefix_list_ids   = (var.AWS_REGION == "us-east-1")?["pl-4e2ece27"]:["pl-5aa44133"]
-  }
 
   ingress {
     description       = "All ports from ELB"
@@ -269,13 +213,6 @@ resource "aws_security_group" "aurora-sg" {
     cidr_blocks      = var.PEER_CIDR
   }
 
-  ingress {
-    description      = "Aurora Port from AWS Corp"
-    from_port        = 5432
-    to_port          = 5432
-    protocol         = "tcp"
-    prefix_list_ids  = (var.AWS_REGION == "us-east-1")?["pl-4e2ece27"]:["pl-5aa44133"]
-  }
 
   ingress {
     description      = "Aurora Port from ECS"
@@ -338,13 +275,6 @@ resource "aws_security_group" "mq_sg" {
     cidr_blocks      = var.PEER_CIDR
   }
 
-  ingress {
-    description      = "Console Port from AWS Corp"
-    from_port        = 8162
-    to_port          = 8162
-    protocol         = "tcp"
-    prefix_list_ids  = (var.AWS_REGION == "us-east-1")?["pl-4e2ece27"]:["pl-5aa44133"]
-  }
 
   ingress {
     description      = "Open Wire Port from VPC"
@@ -362,13 +292,6 @@ resource "aws_security_group" "mq_sg" {
     cidr_blocks      = var.PEER_CIDR
   }
 
-  ingress {
-    description      = "Open Wire Port from Corp"
-    from_port        = 61617
-    to_port          = 61617
-    protocol         = "tcp"
-    prefix_list_ids  = (var.AWS_REGION == "us-east-1")?["pl-4e2ece27"]:["pl-5aa44133"]
-  }
 
   ingress {
     description      = "Open Wire Port from ECS"
@@ -394,13 +317,6 @@ resource "aws_security_group" "mq_sg" {
     cidr_blocks      = var.PEER_CIDR
   }
 
-  ingress {
-    description      = "Stomp Port from Corp"
-    from_port        = 61614
-    to_port          = 61614
-    protocol         = "tcp"
-    prefix_list_ids  = (var.AWS_REGION == "us-east-1")?["pl-4e2ece27"]:["pl-5aa44133"]
-  }
 
   ingress {
     description      = "Stomp Port from ECS"

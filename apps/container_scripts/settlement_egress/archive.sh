@@ -1,7 +1,7 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 echo "Building settlement egress container"
-export DOCKER_BUILDKIT=0
+export DOCKER_DEFAULT_PLATFORM=linux/amd64
 echo "ACCOUNT_ID - $ACCOUNT_ID"
 echo "REGION - $REGION"
 

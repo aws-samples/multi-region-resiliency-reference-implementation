@@ -1,22 +1,6 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
-terraform {
-
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 3.48.0"
-    }
-    archive = {
-      source  = "hashicorp/archive"
-      version = "~> 2.2.0"
-    }
-  }
-
-  required_version = "~> 1.0"
-}
-
 provider "aws" {
 
   region = var.AWS_REGION
@@ -70,7 +54,7 @@ data "archive_file" "lambda_dbrotation" {
   output_path = "${path.module}/dbrotation.zip"
 }
 
-resource "aws_s3_bucket_object" "lambda_dbrotation" {
+resource "aws_s3_object" "lambda_dbrotation" {
 
   bucket = aws_s3_bucket.lambda_bucket.id
 
@@ -87,7 +71,7 @@ resource "aws_lambda_function" "dbrotation" {
   function_name = "dbrotation"
 
   s3_bucket = aws_s3_bucket.lambda_bucket.id
-  s3_key    = aws_s3_bucket_object.lambda_dbrotation.key
+  s3_key    = aws_s3_object.lambda_dbrotation.key
 
   runtime = "nodejs12.x"
   handler = "dbrotation.handler"

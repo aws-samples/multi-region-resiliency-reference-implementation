@@ -6,7 +6,7 @@ resource "random_password" "in-gateway-mq-password" {
   length           = 12
   upper            = true
   lower            = true
-  number           = true
+  numeric          = true
   special          = false
   override_special = "!@#$%&*()-_+[]{}<>?"
 }
@@ -29,7 +29,7 @@ resource "random_password" "out-gateway-mq-password" {
   length           = 12
   upper            = true
   lower            = true
-  number           = true
+  numeric          = true
   special          = false
   override_special = "!@#$%&*()-_+[]{}<>?"
 }

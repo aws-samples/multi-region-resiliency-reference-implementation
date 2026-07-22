@@ -10,7 +10,6 @@ echo "REGION: $REGION";
 
 date
 
-export PATH=/opt/Python-3.9.10:${PATH}
 
 if [[ $CREDS ]];
 then
@@ -51,9 +50,8 @@ export CERT_TRADE_OUT_PK_PATH_US_WEST2="/certs/trade-matching.out.pk.us-west2.ke
 
 cd /reconciliation_app
 echo "Starting App"
-python3.9 -V
-python3.9 -m pip install -r src/requirements.txt
-python3.9 src/main.py --reconciliation=$RECONCILIATION --region=$REGION
+python3 -V
+python3 src/main.py --reconciliation=$RECONCILIATION --region=$REGION
 echo 'RECONCILIATION App end.'
 date
 date

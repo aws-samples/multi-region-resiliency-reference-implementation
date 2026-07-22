@@ -38,7 +38,7 @@ keytool -import -alias in-queue-tm-us-west2 -keystore $JAVA_HOME/lib/security/ca
 keytool -import -alias in-queue-tm-chain-us-east1 -keystore $JAVA_HOME/lib/security/cacerts -file /certs/trade-matching-chain.in.us-east1.der -storepass changeit -noprompt
 keytool -import -alias in-queue-tm-chain-us-west2 -keystore $JAVA_HOME/lib/security/cacerts -file /certs/trade-matching-chain.in.us-west2.der -storepass changeit -noprompt
 
-keytool -import -alias out-queue-st-us-east1 -keystore $JAVA_HOME/lib/security/cacerts -file /certs/settlement.out.us-east1 -storepass changeit -noprompt
+keytool -import -alias out-queue-st-us-east1 -keystore $JAVA_HOME/lib/security/cacerts -file /certs/settlement.out.us-east1.der -storepass changeit -noprompt
 keytool -import -alias out-queue-st-us-west2 -keystore $JAVA_HOME/lib/security/cacerts -file /certs/settlement.out.us-west2.der -storepass changeit -noprompt
 keytool -import -alias out-queue-st-chain-us-east1 -keystore $JAVA_HOME/lib/security/cacerts -file /certs/settlement-chain.out.us-east1.der -storepass changeit -noprompt
 keytool -import -alias out-queue-st-chain-us-west2 -keystore $JAVA_HOME/lib/security/cacerts -file /certs/settlement-chain.out.us-west2.der -storepass changeit -noprompt
@@ -72,8 +72,6 @@ TRADES_QUEUE="settlements"
 
 #aws secretsmanager get-secret-value --secret-id tutorial/MyFirstSecret
 cd /settlement_outbound_gateway
-echo "Starting gradle build"
-gradle build -x test
 echo "Executing App"
 java -jar build/libs/SettlementOutbound-0.0.1-SNAPSHOT.jar --aws.safeStoreTable=$STATE_TABLE_NAME \
 --aws.inboundStreamName=$INBOUND_STREAM_NAME --aws.region=$REGION --settlements.endpoint=$SETTLEMENT_ENDPOINT \

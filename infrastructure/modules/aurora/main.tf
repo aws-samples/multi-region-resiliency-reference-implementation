@@ -18,7 +18,7 @@ resource "random_string" "username" {
   length           = 8
   upper            = true
   lower            = true
-  number           = false
+  numeric          = false
   special          = false
   override_special = ""
 }
@@ -28,7 +28,7 @@ resource "random_password" "password" {
   length           = 12
   upper            = true
   lower            = true
-  number           = true
+  numeric          = true
   special          = false
   override_special = "!@#$%&*()-_=+[]{}<>:?"
 }
@@ -96,7 +96,7 @@ resource "aws_rds_cluster_parameter_group" "primary_parameter_group" {
   provider = aws.primary
 
   name = "${var.APP}-${var.COMPONENT}-primary-rds-parameter-group"
-  family      = "aurora-postgresql11"
+  family      = "aurora-postgresql16"
   description = "${var.APP}-${var.COMPONENT}-primary-rds-parameter-group"
 
   parameter {
@@ -115,7 +115,7 @@ resource "aws_rds_cluster_parameter_group" "secondary_parameter_group" {
   provider = aws.secondary
 
   name = "${var.APP}-${var.COMPONENT}-secondary-rds-parameter-group"
-  family      = "aurora-postgresql11"
+  family      = "aurora-postgresql16"
   description = "${var.APP}-${var.COMPONENT}-secondary-rds-parameter-group"
 
   parameter {

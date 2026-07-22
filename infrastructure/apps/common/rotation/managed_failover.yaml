@@ -34,7 +34,7 @@ description: |-
   28. Turn Secondary Queue Arc Control On
   29. Turn Secondary DNS Arc Control On
 schemaVersion: '0.3'
-assumeRole: 'arn:aws:iam::285719923712:role/team-app-rotation-automation-role'
+assumeRole: 'arn:aws:iam::<account_id>:role/team-app-rotation-automation-role'
 parameters:
   APP:
     type: String
@@ -58,7 +58,7 @@ mainSteps:
   - name: GetRegions
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       InputPayload:
@@ -79,7 +79,7 @@ mainSteps:
   - name: TurnPrimaryDNSArcControlOff
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       InputPayload:
@@ -93,7 +93,7 @@ mainSteps:
   - name: WaitForMQToDrain
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       InputPayload:
@@ -107,7 +107,7 @@ mainSteps:
   - name: WaitForKinesisStreamsToBeProcessed1
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       InputPayload:
@@ -119,7 +119,7 @@ mainSteps:
   - name: WaitForDynamoDBToReplicate
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       InputPayload:
@@ -132,7 +132,7 @@ mainSteps:
   - name: WaitForAuroraGlobalDatabaseToReplicate
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       InputPayload:
@@ -145,7 +145,7 @@ mainSteps:
   - name: TurnPrimaryQueueArcControlOff
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       InputPayload:
@@ -159,7 +159,7 @@ mainSteps:
   - name: TurnPrimaryAppArcControlOff
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       InputPayload:
@@ -173,7 +173,7 @@ mainSteps:
   - name: FailoverAuroraGlobalDatabase
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       InputPayload:
@@ -190,7 +190,7 @@ mainSteps:
   - name: WaitForAuroraGlobalFailover
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       InputPayload:
@@ -203,7 +203,7 @@ mainSteps:
   - name: UpdateDatabaseSecret
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       InputPayload:
@@ -216,7 +216,7 @@ mainSteps:
   - name: RestartECSService
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       InputPayload:
@@ -229,7 +229,7 @@ mainSteps:
   - name: WaitForECSServiceToStart
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       Attachment: rotation.py
@@ -239,7 +239,7 @@ mainSteps:
   - name: TestDeleteRecordsFromAllDynamoDBTables
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       InputPayload:
@@ -252,7 +252,7 @@ mainSteps:
   - name: TurnSecondaryAppArcControlOn
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       InputPayload:
@@ -266,7 +266,7 @@ mainSteps:
   - name: ReconcileAndReplayInboundGatewayAndIngestion
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       InputPayload:
@@ -279,7 +279,7 @@ mainSteps:
   - name: WaitForInboundGatewayReconciliationToComplete
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       Attachment: rotation.py
@@ -289,7 +289,7 @@ mainSteps:
   - name: WaitForKinesisStreamsToBeProcessed2
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       InputPayload:
@@ -301,7 +301,7 @@ mainSteps:
   - name: ReconcileAndReplayIngestionAndMatching
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       InputPayload:
@@ -314,7 +314,7 @@ mainSteps:
   - name: WaitForIngestionReconciliationToComplete
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       Attachment: rotation.py
@@ -324,7 +324,7 @@ mainSteps:
   - name: WaitForKinesisStreamsToBeProcessed3
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       InputPayload:
@@ -336,7 +336,7 @@ mainSteps:
   - name: ReconcileAndReplayMatchingAndEgress
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       InputPayload:
@@ -349,7 +349,7 @@ mainSteps:
   - name: WaitForMatchingReconciliationToComplete
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       Attachment: rotation.py
@@ -359,7 +359,7 @@ mainSteps:
   - name: WaitForKinesisStreamsToBeProcessed4
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       InputPayload:
@@ -371,7 +371,7 @@ mainSteps:
   - name: ReconcileAndReplayEgressAndOutboundGateway
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       InputPayload:
@@ -384,7 +384,7 @@ mainSteps:
   - name: WaitForEgressReconciliationToComplete
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       Attachment: rotation.py
@@ -394,7 +394,7 @@ mainSteps:
   - name: WaitForKinesisStreamsToBeProcessed5
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       InputPayload:
@@ -406,7 +406,7 @@ mainSteps:
   - name: ReconcileAndReplayOutboundGatewayAndInboundGatewaySettlement
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       Attachment: rotation.py
@@ -419,7 +419,7 @@ mainSteps:
   - name: WaitForOutboundReconciliationToComplete
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       Attachment: rotation.py
@@ -429,7 +429,7 @@ mainSteps:
   - name: TurnSecondaryQueueArcControlOn
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       InputPayload:
@@ -443,7 +443,7 @@ mainSteps:
   - name: TurnSecondaryDnsArcControlOn
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: rotation.invoke
       Script: ''
       Attachment: rotation.py

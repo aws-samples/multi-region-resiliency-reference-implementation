@@ -8,7 +8,7 @@ resource "aws_lambda_function" "function" {
   s3_bucket = var.S3_BUCKET
   s3_key    = var.S3_KEY
 
-  runtime = "python3.8"
+  runtime = "python3.12"
   handler = var.LAMBDA_HANDLER
   timeout = 300
   publish = true
@@ -111,7 +111,7 @@ resource "aws_lambda_function" "options" {
   s3_bucket = var.S3_BUCKET
   s3_key    = var.S3_KEY
 
-  runtime = "python3.8"
+  runtime = "python3.12"
   handler = var.LAMBDA_OPTIONS_HANDLER
   timeout = 300
   publish = true
@@ -239,7 +239,7 @@ resource "random_string" "suffix" {
   length           = 6
   upper            = false
   lower            = true
-  number           = false
+  numeric          = false
   special          = false
   override_special = ""
 }

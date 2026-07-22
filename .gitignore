@@ -1,0 +1,9 @@
+# Local deployment artifacts
+temporary/
+**/.terraform/
+**/.terraform.lock.hcl
+infrastructure/apps/common/chaos/chaos.zip
+infrastructure/apps/common/rotation/rotation.zip
+infrastructure/apps/common/dbrotation/dbrotation.zip
+apps/container_scripts/certs/
+__pycache__/

@@ -236,20 +236,6 @@ destroy-common-vpc-peering:
 		terraform destroy -auto-approve;)
 	@echo "Finished Destroying Infrastructure Common VPC Peering"
 
-deploy-common-arc:
-	@echo "Deploying Infrastructure Common ARC"
-	(cd apps/common/arc; \
-		terraform init; \
-		terraform apply -auto-approve;)
-	@echo "Finished Deploying Infrastructure Common ARC"
-
-destroy-common-arc:
-	@echo "Destroying Infrastructure Common ARC"
-	(cd apps/common/arc; \
-		terraform init; \
-		terraform destroy -auto-approve;)
-	@echo "Finished Destroying Infrastructure Common ARC"
-
 deploy-common-chaos:
 	@echo "Deploying Infrastructure Common Chaos"
 	(cd apps/common/chaos; \
@@ -329,7 +315,7 @@ prerequisites: update-infra-env create-infra-store-bucket deploy-common-stores
 deploy-before: deploy-common-initialization deploy-common-ecs-role deploy-common-arc-cluster
 deploy-trading: deploy-trading-initialization deploy-trading-primary deploy-trading-secondary deploy-trading-global
 deploy-settlement: deploy-settlement-initialization deploy-settlement-primary deploy-settlement-secondary deploy-settlement-global
-deploy-after: deploy-common-vpc-peering deploy-common-arc deploy-common-mq-dns deploy-common-mq-replication deploy-common-rotation deploy-common-chaos deploy-common-hub
+deploy-after: deploy-common-vpc-peering deploy-common-mq-dns deploy-common-mq-replication deploy-common-rotation deploy-common-chaos deploy-common-hub
 deploy-all: deploy-before deploy-trading deploy-settlement deploy-after
 
 help:

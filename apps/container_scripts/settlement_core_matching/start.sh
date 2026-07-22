@@ -61,9 +61,6 @@ echo "$DB_URL"
 ARC_CLUSTER=`aws secretsmanager get-secret-value --secret-id approtation-cluster --region $REGION | jq --raw-output '.SecretString'`
 
 cd /settlement_core_matching
-echo "Starting gradle build"
-gradle clean
-gradle build -x test
 echo "Executing App"
 java -jar build/libs/SettlementCoreMatching-0.0.1-SNAPSHOT.jar --spring.datasource.url=$DB_URL \
 --spring.datasource.username=$DB_USERNAME --spring.datasource.password=$DB_PASSWORD --aws.region=$REGION \

@@ -193,66 +193,37 @@ data "aws_vpc" "app2-region2-vpc" {
   id = data.aws_secretsmanager_secret_version.app2-region2-vpc-secret-version.secret_string
 }
 
-resource "aws_route" "app1-public-subnet-route" {
+locals {
+  app1_route_table_ids = toset(distinct([
+    nonsensitive(data.aws_secretsmanager_secret_version.app1-region1-public-subnet-1-route-table-id-secret-version.secret_string),
+    nonsensitive(data.aws_secretsmanager_secret_version.app1-region1-private-subnet-1-route-table-id-secret-version.secret_string),
+    nonsensitive(data.aws_secretsmanager_secret_version.app1-region1-private-subnet-2-route-table-id-secret-version.secret_string),
+    nonsensitive(data.aws_secretsmanager_secret_version.app1-region1-private-subnet-3-route-table-id-secret-version.secret_string),
+  ]))
+  app2_route_table_ids = toset(distinct([
+    nonsensitive(data.aws_secretsmanager_secret_version.app2-region2-public-subnet-1-route-table-id-secret-version.secret_string),
+    nonsensitive(data.aws_secretsmanager_secret_version.app2-region2-private-subnet-1-route-table-id-secret-version.secret_string),
+    nonsensitive(data.aws_secretsmanager_secret_version.app2-region2-private-subnet-2-route-table-id-secret-version.secret_string),
+    nonsensitive(data.aws_secretsmanager_secret_version.app2-region2-private-subnet-3-route-table-id-secret-version.secret_string),
+  ]))
+}
 
-  provider = aws.primary
-  route_table_id            = data.aws_secretsmanager_secret_version.app1-region1-public-subnet-1-route-table-id-secret-version.secret_string
+resource "aws_route" "app1-routes" {
+
+  for_each = local.app1_route_table_ids
+
+  provider                  = aws.primary
+  route_table_id            = each.value
   destination_cidr_block    = data.aws_vpc.app2-region2-vpc.cidr_block
   vpc_peering_connection_id = aws_vpc_peering_connection.peering-connection.id
 }
 
-resource "aws_route" "app1-private-subnet-1-route" {
+resource "aws_route" "app2-routes" {
 
-  provider = aws.primary
-  route_table_id            = data.aws_secretsmanager_secret_version.app1-region1-private-subnet-1-route-table-id-secret-version.secret_string
-  destination_cidr_block    = data.aws_vpc.app2-region2-vpc.cidr_block
-  vpc_peering_connection_id = aws_vpc_peering_connection.peering-connection.id
-}
+  for_each = local.app2_route_table_ids
 
-resource "aws_route" "app1-private-subnet-2-route" {
-
-  provider = aws.primary
-  route_table_id            = data.aws_secretsmanager_secret_version.app1-region1-private-subnet-2-route-table-id-secret-version.secret_string
-  destination_cidr_block    = data.aws_vpc.app2-region2-vpc.cidr_block
-  vpc_peering_connection_id = aws_vpc_peering_connection.peering-connection.id
-}
-
-resource "aws_route" "app1-private-subnet-3-route" {
-
-  provider = aws.primary
-  route_table_id            = data.aws_secretsmanager_secret_version.app1-region1-private-subnet-3-route-table-id-secret-version.secret_string
-  destination_cidr_block    = data.aws_vpc.app2-region2-vpc.cidr_block
-  vpc_peering_connection_id = aws_vpc_peering_connection.peering-connection.id
-}
-
-resource "aws_route" "app2-public-subnet-route" {
-
-  provider = aws.secondary
-  route_table_id            = data.aws_secretsmanager_secret_version.app2-region2-public-subnet-1-route-table-id-secret-version.secret_string
-  destination_cidr_block    = data.aws_vpc.app1-region1-vpc.cidr_block
-  vpc_peering_connection_id = aws_vpc_peering_connection.peering-connection.id
-}
-
-resource "aws_route" "app2-private-subnet-1-route" {
-
-  provider = aws.secondary
-  route_table_id            = data.aws_secretsmanager_secret_version.app2-region2-private-subnet-1-route-table-id-secret-version.secret_string
-  destination_cidr_block    = data.aws_vpc.app1-region1-vpc.cidr_block
-  vpc_peering_connection_id = aws_vpc_peering_connection.peering-connection.id
-}
-
-resource "aws_route" "app2-private-subnet-2-route" {
-
-  provider = aws.secondary
-  route_table_id            = data.aws_secretsmanager_secret_version.app2-region2-private-subnet-2-route-table-id-secret-version.secret_string
-  destination_cidr_block    = data.aws_vpc.app1-region1-vpc.cidr_block
-  vpc_peering_connection_id = aws_vpc_peering_connection.peering-connection.id
-}
-
-resource "aws_route" "app2-private-subnet-3-route" {
-
-  provider = aws.secondary
-  route_table_id            = data.aws_secretsmanager_secret_version.app2-region2-private-subnet-3-route-table-id-secret-version.secret_string
+  provider                  = aws.secondary
+  route_table_id            = each.value
   destination_cidr_block    = data.aws_vpc.app1-region1-vpc.cidr_block
   vpc_peering_connection_id = aws_vpc_peering_connection.peering-connection.id
 }

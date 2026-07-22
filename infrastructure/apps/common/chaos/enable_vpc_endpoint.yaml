@@ -6,7 +6,7 @@ description: |-
 
   1. Enable VPC Endpoint
 schemaVersion: '0.3'
-assumeRole: 'arn:aws:iam::285719923712:role/team-app-rotation-automation-role'
+assumeRole: 'arn:aws:iam::<account_id>:role/team-app-rotation-automation-role'
 parameters:
   REGION:
     type: String
@@ -24,7 +24,7 @@ mainSteps:
   - name: EnableVPCEndpoint
     action: 'aws:executeScript'
     inputs:
-      Runtime: python3.8
+      Runtime: python3.11
       Handler: chaos.invoke
       Script: ''
       InputPayload:
