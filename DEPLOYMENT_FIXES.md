@@ -202,12 +202,103 @@ names with random suffixes) is referenced by no `backend.tf` in the repo and
 used removed provider syntax. Legacy modules and the `remote-store/template`
 directory were deleted; only the buckets the backends actually use remain.
 
-## 10. Known remaining work (intentionally out of scope here)
+## 10. Dashboard
 
-- **Dashboard** (`infrastructure/dashboard`): UI has hardcoded API endpoints
-  and API keys from the original environment; `api/src/api.py` and its IAM
-  policy still reference the removed Recovery Readiness APIs; the Lambdas
-  import `psycopg2`, which needs a layer/vendored build for the new runtime.
+The dashboard (API, hosting infrastructure, and React UI) was not deployable
+or usable from the open-source snapshot. It is now deployed and verified,
+including a full managed-failover of the trade-matching application executed
+through the dashboard's runbook API (all 29 runbook steps succeeded; the
+Aurora global database writer moved to the standby region and processing
+resumed there).
+
+### 10.1 API (`infrastructure/dashboard/api`)
+
+- **psycopg2 Lambda layer.** `api.py` imports `psycopg2` at module level, so
+  every one of the 18 Lambdas failed at init — the dependency was never
+  provided by the repo. Added `build_layer.sh`, which packages the
+  `psycopg2-binary` manylinux wheel for the python3.12 x86_64 runtime into
+  `psycopg2_layer.zip`, an `aws_lambda_layer_version` resource, and a
+  `LAYERS` input on the api-gateway module (attached to all 18 APIs). Run
+  `build_layer.sh` before `terraform apply`.
+- **`get_app_ready` rewritten.** It called the Route 53 ARC *readiness* APIs,
+  which are closed to new AWS accounts (see section 3). Readiness is now
+  derived from the live resources themselves: DynamoDB global-table replica
+  status, Aurora global database member availability, and ECS cluster
+  capacity in both regions. The response shape and the summary logic are
+  unchanged, so the UI works as before. The
+  `route53-recovery-readiness:*` IAM permission was removed.
+- **`get_app_recons` implemented.** The handler was wired to API Gateway but
+  the function did not exist in the snapshot (only a commented-out draft), so
+  the Lambda failed with `Runtime.HandlerNotFound`. A minimal implementation
+  returning the aggregate object shape was added; the UI performs per-step
+  reconciliation through `get_app_recon_step`, which is intact.
+- **Log group creation race.** The module created each function's log group
+  named from the function resource, but provisioned concurrency initializes
+  the Lambda immediately, auto-creating the log group first and failing the
+  apply with `ResourceAlreadyExistsException`. Log groups are now named from
+  the input variable and the Lambdas `depends_on` them.
+- **v5 provider syntax** for the Lambda-code bucket (split versioning/SSE),
+  as elsewhere.
+- **UI config outputs.** The stack now exposes a sensitive `ui_config` output
+  (endpoint, API key, and resource path for each of the 18 APIs) consumed by
+  `../generate_ui_config.sh`.
+
+### 10.2 Hosting (`infrastructure/dashboard/infra`)
+
+- **SSE-KMS + Origin Access Identity = broken site.** The website bucket
+  defaulted to SSE-KMS while CloudFront used a legacy OAI, which cannot
+  decrypt KMS-encrypted objects — S3 returned 400 for every asset and the
+  dashboard rendered a blank page. This was broken upstream as well. The
+  website bucket and objects now use SSE-S3 (AES256). (Migrating OAI → OAC
+  would allow SSE-KMS with a customer-managed key; left as future work.)
+- **WAF allowlist parameterized, dual-stack.** The allowlist was a hardcoded
+  IPv4 address from the original developer's home network. It is now driven
+  by `ALLOWED_IP_CIDRS` (IPv4) and `ALLOWED_IPV6_CIDRS` (IPv6) variables —
+  both default to an empty list, which blocks all access until the deployer
+  supplies their CIDRs (e.g. via `terraform.tfvars`, which is gitignored).
+  A second WAF rule with an IPv6 IP set was added because the distribution
+  is dual-stack: IPv6 visitors were evaluated only against the IPv4 set and
+  blocked. For IPv6, allow your network's /64 prefix — client privacy
+  extensions rotate the host portion of the address.
+- **Content types corrected** for uploaded assets (`png`, `ico`, `txt`, `map`
+  were served as `text/html`), with a fallback for unknown extensions.
+- **v5 provider syntax**: split bucket versioning/SSE; removed the standalone
+  `aws_s3_bucket_acl` (new buckets enforce bucket-owner ownership and reject
+  ACLs).
+
+### 10.3 UI (`infrastructure/dashboard/ui`)
+
+- **Hardcoded endpoints and API keys removed.** `src/config/index.ts`
+  contained 18 API Gateway URLs and plaintext API keys from the original
+  environment. The committed file is now a placeholder;
+  `infrastructure/dashboard/generate_ui_config.sh` generates the real file
+  from the deployed API stack's Terraform outputs. Do not commit the
+  generated file — it contains live API keys.
+- **Build fixes** (the app did not compile from the snapshot):
+  - Removed an import of `@okta/okta-react`, a dependency not present in
+    `package.json`; all other Okta code was already commented out upstream.
+  - Added `src/components/home/approtation.png` (imported by the home page
+    but missing from the repo) using the repository's architecture diagram.
+  - Pinned dev dependencies `ajv@^8` and `@types/react@^17` — with npm's
+    legacy peer resolution the hoisted versions (ajv 6 / React 19 types)
+    break react-scripts 5 and the React 17 component typings.
+  - Set `useUnknownInCatchVariables: false` in `tsconfig.json`; the code
+    predates TypeScript 4.4's stricter catch-variable typing.
+- Install with `npm install --legacy-peer-deps` (React 17-era peer
+  dependency tree), then `npm run build`.
+
+### 10.4 Dashboard deployment order
+
+1. `infrastructure/dashboard/api`: `./build_layer.sh`, then
+   `terraform init && terraform apply`
+2. `infrastructure/dashboard/generate_ui_config.sh`
+3. `infrastructure/dashboard/ui`: `npm install --legacy-peer-deps && npm run build`
+4. `infrastructure/dashboard/infra`: set `ALLOWED_IP_CIDRS` /
+   `ALLOWED_IPV6_CIDRS` in `terraform.tfvars`, then
+   `terraform init && terraform apply`
+
+## 11. Known remaining work (intentionally out of scope here)
+
 - **dbrotation** (`apps/common/dbrotation`): nodejs12.x runtime (EOL), AWS
   SDK v2, hardcoded original-account ARNs and ARC cluster endpoints, and no
   trigger wired to it. The SSM rotation runbooks perform Aurora failover

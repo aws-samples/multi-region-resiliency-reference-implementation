@@ -14,3 +14,16 @@ output "api_gateway_arn" {
 }
 
 
+
+output "invoke_url" {
+
+  description = "Invoke URL of the API stage"
+  value       = aws_api_gateway_stage.stage.invoke_url
+}
+
+output "api_key_value" {
+
+  description = "Value of the API key"
+  value       = aws_api_gateway_api_key.key.value
+  sensitive   = true
+}

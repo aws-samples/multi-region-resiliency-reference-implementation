@@ -5,23 +5,31 @@ resource "aws_s3_bucket" "bucket" {
 
   bucket = "${var.BUCKET_NAME}-${var.ENV}"
 
-  acl           = "private"
   force_destroy = true
-
-  versioning {
-    enabled = true
-  }
-
-  server_side_encryption_configuration {
-    rule {
-      apply_server_side_encryption_by_default {
-        sse_algorithm     = "aws:kms"
-      }
-    }
-  }
 
   #checkov:skip=CKV_AWS_144:Ensure that S3 bucket has cross-region replication enabled
   #checkov:skip=CKV_AWS_18:Ensure the S3 bucket has access logging enabled
+}
+
+resource "aws_s3_bucket_versioning" "bucket" {
+
+  bucket = aws_s3_bucket.bucket.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "bucket" {
+
+  bucket = aws_s3_bucket.bucket.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      # SSE-S3: CloudFront origin access identities cannot decrypt SSE-KMS objects
+      sse_algorithm = "AES256"
+    }
+  }
 }
 
 resource "aws_s3_bucket_public_access_block" "public_access_block" {
@@ -60,21 +68,17 @@ data "aws_iam_policy_document" "bucket_policy_document" {
   }
 }
 
-resource "aws_s3_bucket_acl" "bucket_acl" {
-  bucket = aws_s3_bucket.bucket.id
-  acl    = "private"
-}
-
 locals {
   mime_types = {
     "html"  = "text/html"
-    "txt"   = "text/html"
+    "txt"   = "text/plain"
     "css"   = "text/css"
-    "png"   = "text/html"
-    "ico"   = "text/html"
+    "png"   = "image/png"
+    "ico"   = "image/x-icon"
+    "svg"   = "image/svg+xml"
     "js"    = "application/javascript"
     "json"  = "application/json"
-    "map"   = "application/javascript"
+    "map"   = "application/json"
   }
 }
 
@@ -85,5 +89,6 @@ resource "aws_s3_object" "object" {
   key = each.value
   source = "../ui/build/${each.value}"
   etag = filemd5("../ui/build/${each.value}")
-  content_type  =    lookup(local.mime_types, split(".", each.value)[length(split(".", each.value)) - 1])
+  server_side_encryption = "AES256"
+  content_type  =    lookup(local.mime_types, split(".", each.value)[length(split(".", each.value)) - 1], "application/octet-stream")
 }

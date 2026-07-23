@@ -9,6 +9,7 @@ resource "aws_lambda_function" "function" {
   s3_key    = var.S3_KEY
 
   runtime = "python3.12"
+  layers  = var.LAYERS
   handler = var.LAMBDA_HANDLER
   timeout = 300
   publish = true
@@ -28,6 +29,8 @@ resource "aws_lambda_function" "function" {
   }
 
 //  reserved_concurrent_executions = 3
+
+  depends_on = [aws_cloudwatch_log_group.function_log_group]
 
   #checkov:skip=CKV_AWS_115: "Ensure that AWS Lambda function is configured for function-level concurrent execution limit"
   #checkov:skip=CKV_AWS_116:Ensure that AWS Lambda function is configured for a Dead Letter Queue(DLQ)
@@ -98,7 +101,7 @@ resource "aws_kms_alias" "key_alias" {
 
 resource "aws_cloudwatch_log_group" "function_log_group" {
 
-  name = "/aws/lambda/${aws_lambda_function.function.function_name}"
+  name = "/aws/lambda/${var.FUNCTION_NAME}"
   kms_key_id = aws_kms_key.key.arn
 
   retention_in_days = 30
@@ -112,6 +115,7 @@ resource "aws_lambda_function" "options" {
   s3_key    = var.S3_KEY
 
   runtime = "python3.12"
+  layers  = var.LAYERS
   handler = var.LAMBDA_OPTIONS_HANDLER
   timeout = 300
   publish = true
@@ -132,6 +136,8 @@ resource "aws_lambda_function" "options" {
 
 //  reserved_concurrent_executions = 3
 
+  depends_on = [aws_cloudwatch_log_group.options_log_group]
+
   #checkov:skip=CKV_AWS_115: "Ensure that AWS Lambda function is configured for function-level concurrent execution limit"
   #checkov:skip=CKV_AWS_116:Ensure that AWS Lambda function is configured for a Dead Letter Queue(DLQ)
 }
@@ -145,7 +151,7 @@ resource "aws_lambda_provisioned_concurrency_config" "options_concurrency" {
 
 resource "aws_cloudwatch_log_group" "options_log_group" {
 
-  name = "/aws/lambda/${aws_lambda_function.options.function_name}"
+  name = "/aws/lambda/${var.FUNCTION_NAME}_options"
   kms_key_id = aws_kms_key.key.arn
 
   retention_in_days = 30
