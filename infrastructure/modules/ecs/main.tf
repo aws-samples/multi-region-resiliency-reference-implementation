@@ -163,6 +163,7 @@ resource "aws_ecr_repository" "approtation" {
 
   name = "${var.APP}-${var.COMPONENT}-ecr"
   image_tag_mutability = "MUTABLE"
+  force_delete         = true
 
   encryption_configuration {
     encryption_type = "KMS"

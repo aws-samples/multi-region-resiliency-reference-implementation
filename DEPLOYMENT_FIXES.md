@@ -297,7 +297,43 @@ resumed there).
    `ALLOWED_IPV6_CIDRS` in `terraform.tfvars`, then
    `terraform init && terraform apply`
 
-## 11. Known remaining work (intentionally out of scope here)
+## 11. Teardown and redeployment (verified with a full destroy/redeploy cycle)
+
+- **`destroy-trading-initialization` / `destroy-settlement-initialization`
+  destroyed the wrong stacks** — both changed into the `primary` directory
+  instead of `initialization`. Fixed.
+- **Destroy order was inverted.** `destroy-trading`/`destroy-settlement` ran
+  primary → secondary → global, but the global stack's Aurora clusters live
+  inside the regional VPCs, so regional destroys fail while the databases
+  exist. Order is now global → secondary → primary → initialization, and
+  `destroy-all` covers the full chain (`destroy-after` → apps →
+  `destroy-before`), mirroring `deploy-all` in reverse.
+- **AWS Backup vaults blocked destroy** once a daily backup had run (vaults
+  cannot be deleted while they contain recovery points, and Terraform cannot
+  empty them). Added `infrastructure/empty_backup_vaults.sh`, invoked
+  automatically by the app destroy targets.
+- **ECR repositories blocked destroy** because they contain images; added
+  `force_delete = true` to the repository in `modules/ecs`.
+- **Deletion protection on the MQ NLBs and Aurora clusters blocked destroy.**
+  Both are now disabled with a comment recommending enabling them in
+  production — a sample must be tear-down-able with `make destroy-all`.
+- **Redeploy after destroy collided with secrets scheduled for deletion**:
+  the `arc-health-check` secret was created inline without
+  `recovery_window_in_days = 0` (everything else goes through
+  `modules/secret`, which already sets it). Fixed, with
+  `force_overwrite_replica_secret` for the cross-region replica.
+- **`auth.sh` sessions were limited to 1 hour** (STS default), far shorter
+  than the deployment. `make create-role` now sets a 12-hour maximum session
+  and `auth.sh` requests it, falling back to 1 hour when the caller is
+  itself an assumed role (AWS caps role-chained sessions). `auth.sh` also no
+  longer echoes the temporary credentials to stdout.
+- Operational notes captured in the README troubleshooting section: Aurora
+  writer must be in the primary region before destroy (switch back with
+  `aws rds switchover-global-cluster` after failover demos), KCL lease
+  tables are created at runtime outside Terraform, and transient
+  `VpcEndpoint modify operation in progress` errors resolve on rerun.
+
+## 12. Known remaining work (intentionally out of scope here)
 
 - **dbrotation** (`apps/common/dbrotation`): nodejs12.x runtime (EOL), AWS
   SDK v2, hardcoded original-account ARNs and ARC cluster endpoints, and no

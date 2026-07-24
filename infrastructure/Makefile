@@ -119,7 +119,7 @@ deploy-trading-initialization:
 
 destroy-trading-initialization:
 	@echo "Destroying Infrastructure Trading Initialization"
-	(cd apps/trading/primary; \
+	(cd apps/trading/initialization; \
 	terraform init; \
 	terraform destroy -auto-approve;)
 	@echo "Finished Destroying Infrastructure Trading Initialization"
@@ -175,7 +175,7 @@ deploy-settlement-initialization:
 
 destroy-settlement-initialization:
 	@echo "Destroying Infrastructure Settlement Initialization"
-	(cd apps/settlement/primary; \
+	(cd apps/settlement/initialization; \
 	terraform init; \
 	terraform destroy -auto-approve;)
 	@echo "Finished Destroying Infrastructure Settlement Initialization"
@@ -306,9 +306,17 @@ destroy-common-rotation:
 		terraform destroy -auto-approve;)
 	@echo "Finished Destroying Infrastructure Common Rotation"
 
-destroy-trading: destroy-trading-primary destroy-trading-secondary destroy-trading-global
-destroy-settlement: destroy-settlement-primary destroy-settlement-secondary destroy-settlement-global
-destroy-all: destroy-trading destroy-settlement
+empty-trading-backup-vaults:
+	sh ./empty_backup_vaults.sh trade-matching
+
+empty-settlement-backup-vaults:
+	sh ./empty_backup_vaults.sh settlement
+
+destroy-trading: empty-trading-backup-vaults destroy-trading-global destroy-trading-secondary destroy-trading-primary destroy-trading-initialization
+destroy-settlement: empty-settlement-backup-vaults destroy-settlement-global destroy-settlement-secondary destroy-settlement-primary destroy-settlement-initialization
+destroy-after: destroy-common-hub destroy-common-chaos destroy-common-rotation destroy-common-mq-replication destroy-common-mq-dns destroy-common-vpc-peering
+destroy-before: destroy-common-arc-cluster destroy-common-ecs-role destroy-common-initialization
+destroy-all: destroy-after destroy-trading destroy-settlement destroy-before
 
 destroy-dashboard: destroy-dashboard-api destroy-dashboard-infra
 prerequisites: update-infra-env create-infra-store-bucket deploy-common-stores

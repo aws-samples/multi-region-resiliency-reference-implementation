@@ -155,7 +155,8 @@ resource "aws_rds_cluster" "primary" {
   skip_final_snapshot       = true
   vpc_security_group_ids    = [data.aws_secretsmanager_secret_version.aurora_primary-sg-secret-version.secret_string]
   iam_database_authentication_enabled = true
-  deletion_protection       = true
+  # Disabled so the sample can be torn down with `make destroy-all`; enable in production
+  deletion_protection       = false
   db_cluster_parameter_group_name = aws_rds_cluster_parameter_group.primary_parameter_group.name
 
   depends_on = [aws_rds_cluster_parameter_group.primary_parameter_group]
@@ -206,7 +207,8 @@ resource "aws_rds_cluster" "secondary" {
   skip_final_snapshot       = true
   vpc_security_group_ids    = [data.aws_secretsmanager_secret_version.aurora_secondary-sg-secret-version.secret_string]
   iam_database_authentication_enabled = true
-  deletion_protection = true
+  # Disabled so the sample can be torn down with `make destroy-all`; enable in production
+  deletion_protection = false
   db_cluster_parameter_group_name = aws_rds_cluster_parameter_group.secondary_parameter_group.name
 
   depends_on = [

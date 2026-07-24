@@ -235,7 +235,8 @@ resource "aws_lb" "mq-nlb" {
   load_balancer_type                = "network"
   subnets                           = var.SUBNET_IDS
   enable_cross_zone_load_balancing  = true
-  enable_deletion_protection        = true
+  # Disabled so the sample can be torn down with `make destroy-all`; enable in production
+  enable_deletion_protection        = false
 
   access_logs {
     bucket  = "${var.APP == "trade-matching" ? "tm" : "sm"}-${var.COMPONENT == "in-gateway" ? "in" : "out"}-${var.AWS_REGION}-mq-nlb-log-bucket-${var.ENV}"
