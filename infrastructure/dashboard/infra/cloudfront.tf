@@ -5,31 +5,67 @@ locals {
   s3_origin_id = "s3-www.${var.BUCKET_NAME}"
 }
 
-resource "aws_cloudfront_origin_access_identity" "dashboard" {
-  comment = "Dashboard"
+# Origin Access Control (successor to origin access identities): CloudFront
+# signs origin requests with SigV4, which allows SSE-KMS encrypted objects
+# and lets the bucket policy pin access to this exact distribution.
+resource "aws_cloudfront_origin_access_control" "dashboard" {
+  name                              = "dashboard-${var.ENV}"
+  description                       = "Dashboard website bucket access"
+  origin_access_control_origin_type = "s3"
+  signing_behavior                  = "always"
+  signing_protocol                  = "sigv4"
+}
+
+# Customer managed key for the website bucket. The key policy grants
+# cloudfront.amazonaws.com decrypt access only when the request originates
+# from this distribution (defined after the distribution to avoid a cycle:
+# the distribution does not reference the key).
+resource "aws_kms_key" "bucket_key" {
+  description         = "dashboard-website-bucket-key"
+  enable_key_rotation = true
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "EnableIAMUserPermissions"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root" }
+        Action    = "kms:*"
+        Resource  = "*"
+      },
+      {
+        Sid       = "AllowCloudFrontServicePrincipal"
+        Effect    = "Allow"
+        Principal = { Service = "cloudfront.amazonaws.com" }
+        Action    = ["kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey*"]
+        Resource  = "*"
+        Condition = {
+          StringEquals = {
+            "AWS:SourceArn" = aws_cloudfront_distribution.www_s3_distribution.arn
+          }
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_kms_alias" "bucket_key_alias" {
+  name          = "alias/dashboard-website-bucket-key"
+  target_key_id = aws_kms_key.bucket_key.key_id
 }
 
 resource "aws_cloudfront_distribution" "www_s3_distribution" {
 
   origin {
-    domain_name = aws_s3_bucket.bucket.bucket_regional_domain_name
-    origin_id   = local.s3_origin_id
-
-    s3_origin_config {
-      origin_access_identity = aws_cloudfront_origin_access_identity.dashboard.cloudfront_access_identity_path
-    }
+    domain_name              = aws_s3_bucket.bucket.bucket_regional_domain_name
+    origin_id                = local.s3_origin_id
+    origin_access_control_id = aws_cloudfront_origin_access_control.dashboard.id
   }
 
   enabled             = true
   is_ipv6_enabled     = true
   default_root_object = "index.html"
-
-//  custom_error_response {
-//    error_caching_min_ttl = 0
-//    error_code            = 404
-//    response_code         = 200
-//    response_page_path    = "/404.html"
-//  }
 
   default_cache_behavior {
     allowed_methods  = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
@@ -44,7 +80,7 @@ resource "aws_cloudfront_distribution" "www_s3_distribution" {
       }
     }
 
-    viewer_protocol_policy = "allow-all"
+    viewer_protocol_policy = "redirect-to-https"
     min_ttl                = 0
     default_ttl            = 3600
     max_ttl                = 86400
@@ -62,7 +98,6 @@ resource "aws_cloudfront_distribution" "www_s3_distribution" {
     cloudfront_default_certificate = true
   }
 
-  #checkov:skip=CKV_AWS_34: "Ensure cloudfront distribution ViewerProtocolPolicy is set to HTTPS"
   #checkov:skip=CKV_AWS_86: "Ensure Cloudfront distribution has Access Logging enabled"
   #checkov:skip=CKV_AWS_174: "Verify CloudFront Distribution Viewer Certificate is using TLS v1.2"
   #checkov:skip=CKV2_AWS_32: "Ensure CloudFront distribution has a strict security headers policy attached"
