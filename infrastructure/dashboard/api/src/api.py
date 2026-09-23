@@ -725,7 +725,22 @@ def get_app_ready(event, context):
         app_ready.egress_dynamodb_settlement = check_dynamodb_ready(app, "egress", "settlement")
         app_ready.outbound_dynamodb_settlement = check_dynamodb_ready(app, "out-gateway", "settlement")
 
+        intended_region = get_intended_active_region(app)
+        writer_region = get_aurora_writer_region(app)
+        app_ready.database_writer_region = writer_region or "UNKNOWN"
+        if intended_region is None or writer_region is None:
+            app_ready.database_writer_in_sync = "UNKNOWN"
+        elif intended_region == writer_region:
+            app_ready.database_writer_in_sync = "READY"
+        else:
+            app_ready.database_writer_in_sync = "NOT_READY"
+
         app_ready.matching_rds = check_rds_ready(app)
+        # The database is not "ready" if its writer is in the wrong region:
+        # the intended-active region would be writing to a read-only replica.
+        # Reset with: aws lambda invoke --function-name dbrotation ...
+        if app_ready.database_writer_in_sync == "NOT_READY":
+            app_ready.matching_rds = "NOT_READY"
 
         for region, suffix in [("us-east-1", "primary"), ("us-west-2", "secondary")]:
             setattr(app_ready, "inbound_ecs_" + suffix, check_ecs_ready(app, "in-gateway", region))
@@ -785,6 +800,33 @@ def check_rds_ready(app):
     except Exception as error:
         print("Error running check_rds_ready", error)
         return "UNKNOWN"
+
+
+def get_intended_active_region(app):
+    """Region whose <app>-app-* routing control is On, or None unless
+    exactly one region is On (e.g. mid-runbook drain)."""
+    try:
+        on_regions = [r for r in ("us-east-1", "us-west-2")
+                      if get_arc_control_state(app, "app", r) == "On"]
+        return on_regions[0] if len(on_regions) == 1 else None
+    except Exception as error:
+        print("Error running get_intended_active_region", error)
+        return None
+
+
+def get_aurora_writer_region(app):
+    """Region currently holding the Aurora global database writer."""
+    try:
+        client = boto3.client('rds', region_name="us-east-1")
+        gc = client.describe_global_clusters(
+            GlobalClusterIdentifier=app + "-core-global-cluster")["GlobalClusters"][0]
+        for member in gc["GlobalClusterMembers"]:
+            if member.get("IsWriter"):
+                return member["DBClusterArn"].split(":")[3]
+        return None
+    except Exception as error:
+        print("Error running get_aurora_writer_region", error)
+        return None
 
 
 def check_ecs_ready(app, component, region):
@@ -872,6 +914,8 @@ class AppReady:
         self.ingestion_ecs_primary = "UNKNOWN"
         self.ingestion_ecs_secondary = "UNKNOWN"
         self.matching_rds = "UNKNOWN"
+        self.database_writer_region = "UNKNOWN"
+        self.database_writer_in_sync = "UNKNOWN"
         self.matching_ecs_ingestion_primary = "UNKNOWN"
         self.matching_ecs_ingestion_secondary = "UNKNOWN"
         self.matching_ecs_matching_primary = "UNKNOWN"
@@ -901,6 +945,8 @@ class AppReady:
             'ingestion_ecs_primary': self.ingestion_ecs_primary,
             'ingestion_ecs_secondary': self.ingestion_ecs_secondary,
             'matching_rds': self.matching_rds,
+            'database_writer_region': self.database_writer_region,
+            'database_writer_in_sync': self.database_writer_in_sync,
             'matching_ecs_ingestion_primary': self.matching_ecs_ingestion_primary,
             'matching_ecs_ingestion_secondary': self.matching_ecs_ingestion_secondary,
             'matching_ecs_matching_primary': self.matching_ecs_matching_primary,

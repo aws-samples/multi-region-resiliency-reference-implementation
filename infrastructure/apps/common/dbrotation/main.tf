@@ -26,16 +26,9 @@ resource "aws_s3_bucket" "lambda_bucket" {
 
   bucket = "approtation-database-rotation-lambda-${var.ENV}"
 
-  acl           = "private"
   force_destroy = true
 
-  server_side_encryption_configuration {
-    rule {
-      apply_server_side_encryption_by_default {
-        sse_algorithm     = "aws:kms"
-      }
-    }
-  }
+  #checkov:skip=CKV_AWS_21: "Versioning not required for transient lambda artifacts"
   #checkov:skip=CKV_AWS_19: "Ensure all data stored in the S3 bucket is securely encrypted at rest"
   #checkov:skip=CKV_AWS_18: "Ensure the S3 bucket has access logging enabled"
   #checkov:skip=CKV_AWS_18: CKV_AWS_144: "Ensure that S3 bucket has cross-region replication enabled"
@@ -44,6 +37,17 @@ resource "aws_s3_bucket" "lambda_bucket" {
   #checkov:skip=CKV_AWS_186: "Ensure S3 bucket Object is encrypted by KMS using a customer managed Key (CMK)"
   #checkov:skip=CKV2_AWS_6: "Ensure that S3 bucket has a Public Access block"
   #checkov:skip=CKV_AWS_144:Ensure that S3 bucket has cross-region replication enabled
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "lambda_bucket" {
+
+  bucket = aws_s3_bucket.lambda_bucket.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "aws:kms"
+    }
+  }
 }
 
 data "archive_file" "lambda_dbrotation" {
@@ -73,8 +77,9 @@ resource "aws_lambda_function" "dbrotation" {
   s3_bucket = aws_s3_bucket.lambda_bucket.id
   s3_key    = aws_s3_object.lambda_dbrotation.key
 
-  runtime = "nodejs12.x"
+  runtime = "python3.12"
   handler = "dbrotation.handler"
+  timeout = 60
 
   source_code_hash = data.archive_file.lambda_dbrotation.output_base64sha256
 
@@ -82,11 +87,10 @@ resource "aws_lambda_function" "dbrotation" {
 
   environment {
     variables = {
-      DeploymentRegions = "[\"us-east-1\", \"us-west-2\"]"
-      AuroraGlobalClusterId = "settlement-core-global-cluster"
-      AuroraClusterArns = "{\"us-east-1\":\"arn:aws:rds:us-east-1:285719923712:cluster:settlement-core-primary-cluster\", \"us-west-2\":\"arn:aws:rds:us-west-2:285719923712:cluster:settlement-core-secondary-cluster\"}"
-      RoutingControlArns = "{\"us-east-1\":\"arn:aws:route53-recovery-control::285719923712:controlpanel/c79886e1e5e84c4da2547dbbe027e0d6/routingcontrol/57fc1c681cc94581\",\"us-west-2\":\"arn:aws:route53-recovery-control::285719923712:controlpanel/378bc57b246d41e6bc26e5e020294e43/routingcontrol/d669b4e7caa64e33\"}"
-      ClusterEndpoints = "{\"us-east-1\":\"https://60f985e7.route53-recovery-cluster.us-east-1.amazonaws.com/v1\",\"us-west-2\":\"https://9a60c72f.route53-recovery-cluster.us-west-2.amazonaws.com/v1\"}"
+      # Region hosting the Route 53 ARC control plane APIs
+      CONTROL_PLANE_REGION = "us-west-2"
+      # Region where the solution's secrets are stored
+      SECRETS_REGION       = var.AWS_REGION
     }
   }
 
@@ -107,7 +111,7 @@ resource "aws_cloudwatch_log_group" "dbrotation" {
 
 resource "aws_iam_role" "lambda_exec" {
 
-  name = "serverless_lambda"
+  name = "team-dbrotation-lambda-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -123,10 +127,51 @@ resource "aws_iam_role" "lambda_exec" {
   })
 }
 
-resource "aws_iam_role_policy_attachment" "rds_full_access_policy_attachment" {
+resource "aws_iam_policy" "dbrotation_policy" {
+
+  name        = "team-dbrotation-lambda-policy"
+  description = "Reconcile the Aurora global database writer with the ARC routing controls"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "rds:DescribeGlobalClusters",
+          "rds:DescribeDBClusters",
+          "rds:SwitchoverGlobalCluster",
+          "rds:FailoverGlobalCluster"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "route53-recovery-control-config:ListRoutingControls",
+          "route53-recovery-control-config:DescribeCluster",
+          "route53-recovery-cluster:GetRoutingControlState"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = "*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt"]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "dbrotation_policy_attachment" {
 
   role       = aws_iam_role.lambda_exec.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonRDSFullAccess"
+  policy_arn = aws_iam_policy.dbrotation_policy.arn
 }
 
 resource "aws_iam_role_policy_attachment" "lambda_policy_attachment" {

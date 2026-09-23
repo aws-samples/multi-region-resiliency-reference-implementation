@@ -211,6 +211,29 @@ update-routing-control-state` against your ARC cluster endpoints). Within a
 few minutes the transaction flow view shows trades moving through both
 applications.
 
+### Operations: resetting database state
+
+The routing controls declare which region should be active, but flipping
+them directly (dashboard toggles or CLI) does not move the Aurora Global
+Database writer - only the failover runbook does. If the controls and the
+writer disagree, the dashboard readiness view shows `NOT_READY` with
+`database_writer_in_sync: NOT_READY`. Reconcile them on demand with the
+`dbrotation` function:
+
+```shell
+# preview only
+aws lambda invoke --function-name dbrotation --cli-binary-format raw-in-base64-out \
+  --payload '{"app": "trade-matching", "dry_run": true}' out.json && cat out.json
+
+# perform the switchover (writer follows the routing controls, zero data loss)
+aws lambda invoke --function-name dbrotation --cli-binary-format raw-in-base64-out \
+  --payload '{"app": "trade-matching"}' out.json && cat out.json
+```
+
+The function acts only when exactly one region's app control is On, so it is
+safe to run at any time (it is a no-op mid-runbook or when already in sync).
+Deploy it with `terraform apply` in `infrastructure/apps/common/dbrotation`.
+
 ### Cleanup
 
 Destroy the dashboard first (`terraform destroy` in

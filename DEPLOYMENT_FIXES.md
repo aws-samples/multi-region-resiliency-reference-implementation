@@ -335,10 +335,10 @@ resumed there).
 
 ## 12. Known remaining work (intentionally out of scope here)
 
-- **dbrotation** (`apps/common/dbrotation`): nodejs12.x runtime (EOL), AWS
-  SDK v2, hardcoded original-account ARNs and ARC cluster endpoints, and no
-  trigger wired to it. The SSM rotation runbooks perform Aurora failover
-  independently of it.
+- ~~**dbrotation**~~: rewritten (python 3.12, dynamic resource resolution,
+  both applications, on-demand invocation with dry-run) as the database
+  state reset tool; the dashboard readiness view now surfaces
+  writer-vs-controls drift. See the README "Operations" section.
 - `apps/common/cicd` module has undeclared variables/undefined resources and
   does not plan; it is not part of the deploy chain.
 - `apps/common/cloudwatch` hardcodes us-east-1 stream names; not part of the
