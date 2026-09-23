@@ -249,8 +249,10 @@ resumed there).
   defaulted to SSE-KMS while CloudFront used a legacy OAI, which cannot
   decrypt KMS-encrypted objects — S3 returned 400 for every asset and the
   dashboard rendered a blank page. This was broken upstream as well. The
-  website bucket and objects now use SSE-S3 (AES256). (Migrating OAI → OAC
-  would allow SSE-KMS with a customer-managed key; left as future work.)
+  website bucket was temporarily downgraded to SSE-S3, and the distribution
+  has since been migrated to an origin access control (OAC), restoring
+  SSE-KMS with a customer-managed key and pinning bucket access to the
+  distribution ARN.
 - **WAF allowlist parameterized, dual-stack.** The allowlist was a hardcoded
   IPv4 address from the original developer's home network. It is now driven
   by `ALLOWED_IP_CIDRS` (IPv4) and `ALLOWED_IPV6_CIDRS` (IPv6) variables —
