@@ -76,9 +76,6 @@ ARC_CLUSTER=`aws secretsmanager get-secret-value --secret-id approtation-cluster
 
 #aws secretsmanager get-secret-value --secret-id tutorial/MyFirstSecret
 cd /trade_matching_core_matching
-echo "Starting gradle build"
-gradle clean
-gradle build -x test
 echo "Executing App"
 java -jar build/libs/tradematching-0.0.1-SNAPSHOT.jar --aws.region=$REGION --aws.rout53arcClusterArn=$ARC_CLUSTER \
 --aws.tradeInboundStreamName=$INBOUND_STREAM_NAME --aws.settlementInboundStreamName=$INBOUND_SETTLEMENT_STREAM_NAME \

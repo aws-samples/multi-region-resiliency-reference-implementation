@@ -3,7 +3,8 @@
 
 module "approtation-vpc" {
 
-  source = "terraform-aws-modules/vpc/aws"
+  source  = "terraform-aws-modules/vpc/aws"
+  version = "~> 5.0"
 
   name = "${var.APP}-${var.AWS_REGION}-vpc"
   cidr = var.CIDR
@@ -14,6 +15,7 @@ module "approtation-vpc" {
 
   create_igw = true
   enable_nat_gateway = true
+  single_nat_gateway = true
 
   enable_dns_support    = true
   enable_dns_hostnames  = true

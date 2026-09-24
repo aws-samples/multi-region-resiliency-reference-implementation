@@ -5,26 +5,33 @@ resource "aws_s3_bucket" "s3_bucket" {
 
   bucket = "${var.APP}-${var.LOCATION}-${var.ENV}-terraform-store"
 
-  acl    = "private"
-
-  versioning {
-    enabled = true
-  }
-
-  server_side_encryption_configuration {
-    rule {
-      apply_server_side_encryption_by_default {
-        kms_master_key_id = var.KEY_ARN
-        sse_algorithm     = "aws:kms"
-      }
-    }
-  }
   tags = {
     Name = "${var.APP}-${var.LOCATION}-${var.ENV}-terraform-store"
   }
 
   #checkov:skip=CKV_AWS_18: "Ensure the S3 bucket has access logging enabled"
   #checkov:skip=CKV_AWS_144: "Ensure that S3 bucket has cross-region replication enabled"
+}
+
+resource "aws_s3_bucket_versioning" "s3_bucket" {
+
+  bucket = aws_s3_bucket.s3_bucket.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "s3_bucket" {
+
+  bucket = aws_s3_bucket.s3_bucket.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      kms_master_key_id = var.KEY_ARN
+      sse_algorithm     = "aws:kms"
+    }
+  }
 }
 
 resource "aws_s3_bucket_public_access_block" "public_access_block_source" {

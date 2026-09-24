@@ -88,6 +88,8 @@ resource "aws_secretsmanager_secret" "health-check-secret" {
 
   name = "${var.APP}-${var.AWS_REGION}-arc-health-check"
   kms_key_id = data.aws_kms_key.secret-manager-secret-key.key_id
+  recovery_window_in_days = 0
+  force_overwrite_replica_secret = true
 
   replica {
     region = "${var.AWS_BACKUP_REGION}"

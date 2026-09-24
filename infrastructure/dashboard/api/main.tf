@@ -1,21 +1,6 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 3.48.0"
-    }
-    archive = {
-      source  = "hashicorp/archive"
-      version = "~> 2.2.0"
-    }
-  }
-
-  required_version = "~> 1.0"
-}
-
 provider "aws" {
   region = var.aws_region
 }
@@ -23,24 +8,37 @@ provider "aws" {
 resource "aws_s3_bucket" "lambda_bucket" {
   bucket = "approtation-get-app-state-${var.ENV}"
 
-  acl           = "private"
   force_destroy = true
-
-  versioning {
-    enabled = true
-  }
-
-  server_side_encryption_configuration {
-    rule {
-      apply_server_side_encryption_by_default {
-        sse_algorithm     = "aws:kms"
-      }
-    }
-  }
 
   #checkov:skip=CKV_AWS_144:Ensure that S3 bucket has cross-region replication enabled
   #checkov:skip=CKV_AWS_18:Ensure the S3 bucket has access logging enabled
   #checkov:skip=CKV_AWS_186: "Ensure S3 bucket Object is encrypted by KMS using a customer managed Key (CMK)"
+}
+
+resource "aws_s3_bucket_versioning" "lambda_bucket" {
+  bucket = aws_s3_bucket.lambda_bucket.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "lambda_bucket" {
+  bucket = aws_s3_bucket.lambda_bucket.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "aws:kms"
+    }
+  }
+}
+
+# psycopg2 for the python3.12 runtime; build with ./build_layer.sh before apply
+resource "aws_lambda_layer_version" "psycopg2" {
+  filename            = "${path.module}/psycopg2_layer.zip"
+  layer_name          = "dashboard-psycopg2"
+  compatible_runtimes = ["python3.12"]
+  source_code_hash    = filebase64sha256("${path.module}/psycopg2_layer.zip")
 }
 
 resource "aws_s3_bucket_public_access_block" "public_access_block" {
@@ -60,7 +58,7 @@ data "archive_file" "lambda_get_app_state" {
   output_path = "${path.module}/get_app_state.zip"
 }
 
-resource "aws_s3_bucket_object" "lambda_get_app_state" {
+resource "aws_s3_object" "lambda_get_app_state" {
   bucket = aws_s3_bucket.lambda_bucket.id
 
   key    = "get_app_state.zip"
@@ -118,7 +116,7 @@ module "app_state" {
 
   FUNCTION_NAME             = "get_app_state"
   S3_BUCKET                 = aws_s3_bucket.lambda_bucket.id
-  S3_KEY                    = aws_s3_bucket_object.lambda_get_app_state.key
+  S3_KEY                    = aws_s3_object.lambda_get_app_state.key
   SOURCE_CODE_HASH          = data.archive_file.lambda_get_app_state.output_base64sha256
   LAMBDA_HANDLER            = "api.get_app_state"
   LAMBDA_OPTIONS_HANDLER    = "api.options"
@@ -131,6 +129,7 @@ module "app_state" {
   RESOURCE_NAME             = "app_state"
   METHOD_NAME               = "GET"
   STAGE                     = "dev"
+  LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
 }
 
 module "app_states" {
@@ -138,7 +137,7 @@ module "app_states" {
 
   FUNCTION_NAME             = "get_app_states"
   S3_BUCKET                 = aws_s3_bucket.lambda_bucket.id
-  S3_KEY                    = aws_s3_bucket_object.lambda_get_app_state.key
+  S3_KEY                    = aws_s3_object.lambda_get_app_state.key
   SOURCE_CODE_HASH          = data.archive_file.lambda_get_app_state.output_base64sha256
   LAMBDA_HANDLER            = "api.get_app_states"
   LAMBDA_OPTIONS_HANDLER    = "api.options"
@@ -151,6 +150,7 @@ module "app_states" {
   RESOURCE_NAME             = "app_states"
   METHOD_NAME               = "GET"
   STAGE                     = "dev"
+  LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
 }
 
 module "app_controls" {
@@ -158,7 +158,7 @@ module "app_controls" {
 
   FUNCTION_NAME             = "get_app_controls"
   S3_BUCKET                 = aws_s3_bucket.lambda_bucket.id
-  S3_KEY                    = aws_s3_bucket_object.lambda_get_app_state.key
+  S3_KEY                    = aws_s3_object.lambda_get_app_state.key
   SOURCE_CODE_HASH          = data.archive_file.lambda_get_app_state.output_base64sha256
   LAMBDA_HANDLER            = "api.get_app_controls"
   LAMBDA_OPTIONS_HANDLER    = "api.options"
@@ -171,6 +171,7 @@ module "app_controls" {
   RESOURCE_NAME             = "app_controls"
   METHOD_NAME               = "GET"
   STAGE                     = "dev"
+  LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
 }
 
 module "arc_control" {
@@ -178,7 +179,7 @@ module "arc_control" {
 
   FUNCTION_NAME             = "update_arc_control"
   S3_BUCKET                 = aws_s3_bucket.lambda_bucket.id
-  S3_KEY                    = aws_s3_bucket_object.lambda_get_app_state.key
+  S3_KEY                    = aws_s3_object.lambda_get_app_state.key
   SOURCE_CODE_HASH          = data.archive_file.lambda_get_app_state.output_base64sha256
   LAMBDA_HANDLER            = "api.update_arc_control"
   LAMBDA_OPTIONS_HANDLER    = "api.options"
@@ -191,6 +192,7 @@ module "arc_control" {
   RESOURCE_NAME             = "arc_control"
   METHOD_NAME               = "POST"
   STAGE                     = "dev"
+  LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
 }
 
 module "execute_run_book" {
@@ -198,7 +200,7 @@ module "execute_run_book" {
 
   FUNCTION_NAME             = "execute_run_book"
   S3_BUCKET                 = aws_s3_bucket.lambda_bucket.id
-  S3_KEY                    = aws_s3_bucket_object.lambda_get_app_state.key
+  S3_KEY                    = aws_s3_object.lambda_get_app_state.key
   SOURCE_CODE_HASH          = data.archive_file.lambda_get_app_state.output_base64sha256
   LAMBDA_HANDLER            = "api.execute_run_book"
   LAMBDA_OPTIONS_HANDLER    = "api.options"
@@ -211,6 +213,7 @@ module "execute_run_book" {
   RESOURCE_NAME             = "runbook"
   METHOD_NAME               = "POST"
   STAGE                     = "dev"
+  LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
 }
 
 module "app_recons" {
@@ -218,7 +221,7 @@ module "app_recons" {
 
   FUNCTION_NAME             = "get_app_recons"
   S3_BUCKET                 = aws_s3_bucket.lambda_bucket.id
-  S3_KEY                    = aws_s3_bucket_object.lambda_get_app_state.key
+  S3_KEY                    = aws_s3_object.lambda_get_app_state.key
   SOURCE_CODE_HASH          = data.archive_file.lambda_get_app_state.output_base64sha256
   LAMBDA_HANDLER            = "api.get_app_recons"
   LAMBDA_OPTIONS_HANDLER    = "api.options"
@@ -231,6 +234,7 @@ module "app_recons" {
   RESOURCE_NAME             = "app_recons"
   METHOD_NAME               = "GET"
   STAGE                     = "dev"
+  LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
 }
 
 module "app_recon_step" {
@@ -238,7 +242,7 @@ module "app_recon_step" {
 
   FUNCTION_NAME             = "get_app_recon_step"
   S3_BUCKET                 = aws_s3_bucket.lambda_bucket.id
-  S3_KEY                    = aws_s3_bucket_object.lambda_get_app_state.key
+  S3_KEY                    = aws_s3_object.lambda_get_app_state.key
   SOURCE_CODE_HASH          = data.archive_file.lambda_get_app_state.output_base64sha256
   LAMBDA_HANDLER            = "api.get_app_recon_step"
   LAMBDA_OPTIONS_HANDLER    = "api.options"
@@ -251,6 +255,7 @@ module "app_recon_step" {
   RESOURCE_NAME             = "app_recon_step"
   METHOD_NAME               = "GET"
   STAGE                     = "dev"
+  LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
 }
 
 module "app_ready" {
@@ -258,7 +263,7 @@ module "app_ready" {
 
   FUNCTION_NAME             = "get_app_ready"
   S3_BUCKET                 = aws_s3_bucket.lambda_bucket.id
-  S3_KEY                    = aws_s3_bucket_object.lambda_get_app_state.key
+  S3_KEY                    = aws_s3_object.lambda_get_app_state.key
   SOURCE_CODE_HASH          = data.archive_file.lambda_get_app_state.output_base64sha256
   LAMBDA_HANDLER            = "api.get_app_ready"
   LAMBDA_OPTIONS_HANDLER    = "api.options"
@@ -271,6 +276,7 @@ module "app_ready" {
   RESOURCE_NAME             = "app_ready"
   METHOD_NAME               = "GET"
   STAGE                     = "dev"
+  LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
 }
 
 module "app_health" {
@@ -278,7 +284,7 @@ module "app_health" {
 
   FUNCTION_NAME             = "get_app_health"
   S3_BUCKET                 = aws_s3_bucket.lambda_bucket.id
-  S3_KEY                    = aws_s3_bucket_object.lambda_get_app_state.key
+  S3_KEY                    = aws_s3_object.lambda_get_app_state.key
   SOURCE_CODE_HASH          = data.archive_file.lambda_get_app_state.output_base64sha256
   LAMBDA_HANDLER            = "api.get_app_health"
   LAMBDA_OPTIONS_HANDLER    = "api.options"
@@ -291,6 +297,7 @@ module "app_health" {
   RESOURCE_NAME             = "app_health"
   METHOD_NAME               = "GET"
   STAGE                     = "dev"
+  LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
 }
 
 module "app_replication" {
@@ -298,7 +305,7 @@ module "app_replication" {
 
   FUNCTION_NAME             = "get_replication_latency"
   S3_BUCKET                 = aws_s3_bucket.lambda_bucket.id
-  S3_KEY                    = aws_s3_bucket_object.lambda_get_app_state.key
+  S3_KEY                    = aws_s3_object.lambda_get_app_state.key
   SOURCE_CODE_HASH          = data.archive_file.lambda_get_app_state.output_base64sha256
   LAMBDA_HANDLER            = "api.get_replication_latency"
   LAMBDA_OPTIONS_HANDLER    = "api.options"
@@ -311,6 +318,7 @@ module "app_replication" {
   RESOURCE_NAME             = "app_replication"
   METHOD_NAME               = "GET"
   STAGE                     = "dev"
+  LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
 }
 
 module "start_app" {
@@ -318,7 +326,7 @@ module "start_app" {
 
   FUNCTION_NAME             = "start_tasks_for_app"
   S3_BUCKET                 = aws_s3_bucket.lambda_bucket.id
-  S3_KEY                    = aws_s3_bucket_object.lambda_get_app_state.key
+  S3_KEY                    = aws_s3_object.lambda_get_app_state.key
   SOURCE_CODE_HASH          = data.archive_file.lambda_get_app_state.output_base64sha256
   LAMBDA_HANDLER            = "api.start_tasks_for_app"
   LAMBDA_OPTIONS_HANDLER    = "api.options"
@@ -331,6 +339,7 @@ module "start_app" {
   RESOURCE_NAME             = "start_app"
   METHOD_NAME               = "POST"
   STAGE                     = "dev"
+  LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
 }
 
 module "stop_apps" {
@@ -338,7 +347,7 @@ module "stop_apps" {
 
   FUNCTION_NAME             = "stop_all_tasks_in_region"
   S3_BUCKET                 = aws_s3_bucket.lambda_bucket.id
-  S3_KEY                    = aws_s3_bucket_object.lambda_get_app_state.key
+  S3_KEY                    = aws_s3_object.lambda_get_app_state.key
   SOURCE_CODE_HASH          = data.archive_file.lambda_get_app_state.output_base64sha256
   LAMBDA_HANDLER            = "api.stop_all_tasks_in_region"
   LAMBDA_OPTIONS_HANDLER    = "api.options"
@@ -351,6 +360,7 @@ module "stop_apps" {
   RESOURCE_NAME             = "stop_apps"
   METHOD_NAME               = "POST"
   STAGE                     = "dev"
+  LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
 }
 
 module "clean_databases" {
@@ -358,7 +368,7 @@ module "clean_databases" {
 
   FUNCTION_NAME             = "clean_databases"
   S3_BUCKET                 = aws_s3_bucket.lambda_bucket.id
-  S3_KEY                    = aws_s3_bucket_object.lambda_get_app_state.key
+  S3_KEY                    = aws_s3_object.lambda_get_app_state.key
   SOURCE_CODE_HASH          = data.archive_file.lambda_get_app_state.output_base64sha256
   LAMBDA_HANDLER            = "api.clean_databases"
   LAMBDA_OPTIONS_HANDLER    = "api.options"
@@ -371,6 +381,7 @@ module "clean_databases" {
   RESOURCE_NAME             = "clean_databases"
   METHOD_NAME               = "POST"
   STAGE                     = "dev"
+  LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
 }
 
 module "executions" {
@@ -378,7 +389,7 @@ module "executions" {
 
   FUNCTION_NAME             = "get_executions"
   S3_BUCKET                 = aws_s3_bucket.lambda_bucket.id
-  S3_KEY                    = aws_s3_bucket_object.lambda_get_app_state.key
+  S3_KEY                    = aws_s3_object.lambda_get_app_state.key
   SOURCE_CODE_HASH          = data.archive_file.lambda_get_app_state.output_base64sha256
   LAMBDA_HANDLER            = "api.get_executions"
   LAMBDA_OPTIONS_HANDLER    = "api.options"
@@ -391,6 +402,7 @@ module "executions" {
   RESOURCE_NAME             = "executions"
   METHOD_NAME               = "GET"
   STAGE                     = "dev"
+  LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
 }
 
 module "execution_detail" {
@@ -398,7 +410,7 @@ module "execution_detail" {
 
   FUNCTION_NAME             = "get_execution_detail"
   S3_BUCKET                 = aws_s3_bucket.lambda_bucket.id
-  S3_KEY                    = aws_s3_bucket_object.lambda_get_app_state.key
+  S3_KEY                    = aws_s3_object.lambda_get_app_state.key
   SOURCE_CODE_HASH          = data.archive_file.lambda_get_app_state.output_base64sha256
   LAMBDA_HANDLER            = "api.get_execution_detail"
   LAMBDA_OPTIONS_HANDLER    = "api.options"
@@ -411,6 +423,7 @@ module "execution_detail" {
   RESOURCE_NAME             = "execution_detail"
   METHOD_NAME               = "GET"
   STAGE                     = "dev"
+  LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
 }
 
 module "experiment" {
@@ -418,7 +431,7 @@ module "experiment" {
 
   FUNCTION_NAME             = "run_experiment"
   S3_BUCKET                 = aws_s3_bucket.lambda_bucket.id
-  S3_KEY                    = aws_s3_bucket_object.lambda_get_app_state.key
+  S3_KEY                    = aws_s3_object.lambda_get_app_state.key
   SOURCE_CODE_HASH          = data.archive_file.lambda_get_app_state.output_base64sha256
   LAMBDA_HANDLER            = "api.run_experiment"
   LAMBDA_OPTIONS_HANDLER    = "api.options"
@@ -431,6 +444,7 @@ module "experiment" {
   RESOURCE_NAME             = "experiment"
   METHOD_NAME               = "POST"
   STAGE                     = "dev"
+  LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
 }
 
 module "start_app_component" {
@@ -438,7 +452,7 @@ module "start_app_component" {
 
   FUNCTION_NAME             = "start_tasks_for_app_component"
   S3_BUCKET                 = aws_s3_bucket.lambda_bucket.id
-  S3_KEY                    = aws_s3_bucket_object.lambda_get_app_state.key
+  S3_KEY                    = aws_s3_object.lambda_get_app_state.key
   SOURCE_CODE_HASH          = data.archive_file.lambda_get_app_state.output_base64sha256
   LAMBDA_HANDLER            = "api.start_tasks_for_app_component"
   LAMBDA_OPTIONS_HANDLER    = "api.options"
@@ -451,6 +465,7 @@ module "start_app_component" {
   RESOURCE_NAME             = "start_app_component"
   METHOD_NAME               = "POST"
   STAGE                     = "dev"
+  LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
 }
 
 module "enable_vpc_endpoint" {
@@ -458,7 +473,7 @@ module "enable_vpc_endpoint" {
 
   FUNCTION_NAME             = "enable_vpc_endpoint"
   S3_BUCKET                 = aws_s3_bucket.lambda_bucket.id
-  S3_KEY                    = aws_s3_bucket_object.lambda_get_app_state.key
+  S3_KEY                    = aws_s3_object.lambda_get_app_state.key
   SOURCE_CODE_HASH          = data.archive_file.lambda_get_app_state.output_base64sha256
   LAMBDA_HANDLER            = "api.enable_vpc_endpoint"
   LAMBDA_OPTIONS_HANDLER    = "api.options"
@@ -471,4 +486,5 @@ module "enable_vpc_endpoint" {
   RESOURCE_NAME             = "enable_vpc_endpoint"
   METHOD_NAME               = "POST"
   STAGE                     = "dev"
+  LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
 }

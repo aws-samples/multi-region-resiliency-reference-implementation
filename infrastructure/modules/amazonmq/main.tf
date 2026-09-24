@@ -155,25 +155,35 @@ resource "aws_s3_bucket" "log_bucket" {
 
   bucket = "${var.APP_SHORT}-${var.COMPONENT_SHORT}-${var.AWS_REGION}-mq-nlb-log-bucket-${var.ENV}"
 
-  acl           = "private"
   force_destroy = true
 
-  versioning {
-    enabled = true
-  }
+  #checkov:skip=CKV_AWS_144:Ensure that S3 bucket has cross-region replication enabled
+  #checkov:skip=CKV_AWS_18:Ensure the S3 bucket has access logging enabled
+}
 
-  server_side_encryption_configuration {
-    rule {
-      apply_server_side_encryption_by_default {
-        sse_algorithm     = "aws:kms"
-      }
+resource "aws_s3_bucket_versioning" "log_bucket" {
+
+  bucket = aws_s3_bucket.log_bucket.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "log_bucket" {
+
+  bucket = aws_s3_bucket.log_bucket.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
     }
   }
+}
 
-//  logging {
-//      target_bucket = "${var.APP == "trade-matching" ? "tm" : "sm"}-${var.COMPONENT == "in-gateway" ? "in" : "out"}-${var.AWS_REGION}-mq-nlb-log-bucket-${var.ENV}-log"
-//      target_prefix = "log/${var.APP == "trade-matching" ? "tm" : "sm"}-${var.COMPONENT == "in-gateway" ? "in" : "out"}-${var.AWS_REGION}-mq-nlb-log-bucket-${var.ENV}"
-//  }
+resource "aws_s3_bucket_policy" "log_bucket" {
+
+  bucket = aws_s3_bucket.log_bucket.id
 
   policy = <<POLICY
 {
@@ -185,7 +195,7 @@ resource "aws_s3_bucket" "log_bucket" {
         "s3:PutObject"
       ],
       "Effect": "Allow",
-      "Resource": "arn:aws:s3:::${var.APP_SHORT}-${var.COMPONENT_SHORT}-${var.AWS_REGION}-mq-nlb-log-bucket-${var.ENV}/mq-nlb/AWSLogs/${data.aws_caller_identity.current.account_id}/*",
+      "Resource": "${aws_s3_bucket.log_bucket.arn}/mq-nlb/AWSLogs/${data.aws_caller_identity.current.account_id}/*",
       "Principal": {
         "Service": "delivery.logs.amazonaws.com"
       }
@@ -195,7 +205,7 @@ resource "aws_s3_bucket" "log_bucket" {
         "s3:GetBucketAcl"
       ],
       "Effect": "Allow",
-      "Resource": "arn:aws:s3:::${var.APP_SHORT}-${var.COMPONENT_SHORT}-${var.AWS_REGION}-mq-nlb-log-bucket-${var.ENV}",
+      "Resource": "${aws_s3_bucket.log_bucket.arn}",
       "Principal": {
         "Service": "delivery.logs.amazonaws.com"
       }
@@ -204,8 +214,7 @@ resource "aws_s3_bucket" "log_bucket" {
 }
 POLICY
 
-  #checkov:skip=CKV_AWS_144:Ensure that S3 bucket has cross-region replication enabled
-  #checkov:skip=CKV_AWS_18:Ensure the S3 bucket has access logging enabled
+  depends_on = [aws_s3_bucket_public_access_block.public_access_block]
 }
 
 resource "aws_s3_bucket_public_access_block" "public_access_block" {
@@ -226,7 +235,8 @@ resource "aws_lb" "mq-nlb" {
   load_balancer_type                = "network"
   subnets                           = var.SUBNET_IDS
   enable_cross_zone_load_balancing  = true
-  enable_deletion_protection        = true
+  # Disabled so the sample can be torn down with `make destroy-all`; enable in production
+  enable_deletion_protection        = false
 
   access_logs {
     bucket  = "${var.APP == "trade-matching" ? "tm" : "sm"}-${var.COMPONENT == "in-gateway" ? "in" : "out"}-${var.AWS_REGION}-mq-nlb-log-bucket-${var.ENV}"
@@ -245,7 +255,7 @@ resource "aws_lb" "mq-nlb" {
   }
 
   depends_on = [
-    aws_s3_bucket.log_bucket
+    aws_s3_bucket_policy.log_bucket
   ]
 }
 
@@ -283,7 +293,7 @@ resource "aws_lb_listener" "mq-nlb-listener-1" {
   protocol          = "TLS"
   certificate_arn   =  aws_acm_certificate.nlb-certificate.arn
   alpn_policy       = "HTTP2Preferred"
-  ssl_policy        = "ELBSecurityPolicy-2016-08"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
   #checkov:skip=CKV_AWS_103:Ensure that load balancer is using TLS 1.2
 
   default_action {
@@ -299,7 +309,7 @@ resource "aws_lb_listener" "mq-nlb-listener-2" {
   protocol          = "TLS"
   certificate_arn   =  aws_acm_certificate.nlb-certificate.arn
   alpn_policy       = "HTTP2Preferred"
-  ssl_policy        = "ELBSecurityPolicy-2016-08"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
   #checkov:skip=CKV_AWS_103:Ensure that load balancer is using TLS 1.2
 
   default_action {

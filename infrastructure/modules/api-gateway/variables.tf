@@ -75,3 +75,8 @@ variable "STAGE" {
 
   type = string
 }
+variable "LAYERS" {
+
+  type    = list(string)
+  default = []
+}

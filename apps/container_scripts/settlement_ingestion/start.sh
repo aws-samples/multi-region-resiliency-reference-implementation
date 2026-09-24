@@ -51,8 +51,6 @@ echo "$NACK_STREAM_NAME"
 
 #aws secretsmanager get-secret-value --secret-id tutorial/MyFirstSecret
 cd /settlement_ingestion
-echo "Starting gradle build"
-gradle build -x test
 echo "Executing App"
 java -jar build/libs/SettlementIngestion-0.0.1-SNAPSHOT.jar --aws.stateTableName=$STATE_TABLE_NAME --aws.inboundStream=$INBOUND_STREAM_NAME --aws.outboundStream=$OUTBOUND_STREAM_NAME --aws.nackStream=$NACK_STREAM_NAME --aws.region=$REGION
 echo 'Ingestion end.'

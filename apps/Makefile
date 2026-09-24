@@ -45,18 +45,6 @@ deploy-ingress:
 	done
 	echo "Finished Deploying Ingress."
 
-deploy-core-ingestion:
-	@echo "Deploying Core Ingestion";
-	for i in $(AWS_REGIONS); \
-	do \
-	  echo "Deploy Core Ingestion to $$i"; \
-	  export REGION=$$i; \
-	  export ACCOUNT_ID=$(ACCOUNT_ID); \
-	  cd container_scripts/trade_matching_core_ingestion; \
-	  sh archive.sh; \
-	done
-	echo "Finished Deploying Core Ingestion."
-
 deploy-core-matching:
 	@echo "Deploying Core Matching";
 	for i in $(AWS_REGIONS); \
@@ -165,6 +153,6 @@ deploy-settlement-outbound:
 	done
 	echo "Finished Deploying Settlement Outbound."
 
-deploy-tm: deploy-generator deploy-inbound deploy-ingress deploy-core-ingestion deploy-core-matching deploy-egress deploy-outbound deploy-reconciliation-app
+deploy-tm: deploy-generator deploy-inbound deploy-ingress deploy-core-matching deploy-egress deploy-outbound deploy-reconciliation-app
 deploy-st: deploy-settlement-inbound deploy-settlement-ingestion deploy-settlement-core deploy-settlement-egress deploy-settlement-outbound
 deploy-all: deploy-tm deploy-st

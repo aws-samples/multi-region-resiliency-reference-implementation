@@ -647,6 +647,37 @@ class AppRecon:
         }
 
 
+def get_app_recons(event, context):
+    """
+    Returns the reconciliation summary skeleton for an app. The UI performs
+    per-step reconciliation via get_app_recon_step; this endpoint exists to
+    provide the aggregate object shape. (The original implementation was not
+    included in the open-source snapshot.)
+    """
+
+    result = ""
+    status_code = 500
+    recon = AppRecon()
+
+    try:
+        recon.app_name = deep_get(event, ["queryStringParameters", "app"], "")
+        recon.app_region = deep_get(event, ["queryStringParameters", "region"], "")
+        result = recon.to_dict()
+        status_code = 200
+    except Exception as error:
+        print("Error running get_app_recons", error)
+        traceback.print_exc()
+        result = str(error)
+
+    response = {
+        "statusCode": status_code,
+        'headers': cors_headers(),
+        "body": json.dumps(result, indent=2, sort_keys=True, default=str)
+    }
+
+    return response
+
+
 def recon_copy(recon):
 
     recon_copy = AppRecon()
@@ -668,6 +699,12 @@ def recon_copy(recon):
 
 
 def get_app_ready(event, context):
+    """
+    Readiness view. Route 53 ARC readiness checks are unavailable for new AWS
+    accounts, so readiness is derived directly from the underlying resources:
+    DynamoDB global table replication, Aurora global database member status,
+    and ECS cluster capacity in both regions.
+    """
 
     result = ""
     status_code = 500
@@ -677,62 +714,41 @@ def get_app_ready(event, context):
         app = deep_get(event, ["queryStringParameters", "app"])
         app_ready.app_name = app
 
-        client = boto3.client('route53-recovery-readiness', region_name="us-west-2")
+        if app == "trade-matching":
+            app_ready.inbound_dynamodb_trade = check_dynamodb_ready(app, "in-gateway", "trade")
+            app_ready.ingestion_dynamodb_trade = check_dynamodb_ready(app, "ingress", "trade")
+            app_ready.egress_dynamodb_trade = check_dynamodb_ready(app, "egress", "trade")
+            app_ready.outbound_dynamodb_trade = check_dynamodb_ready(app, "out-gateway", "trade")
 
-        global_inbound_gateway = client.get_cell_readiness_summary(CellName=app + "-global-inbound-gateway")
-        app_ready.inbound_dynamodb_trade = get_readiness_status(global_inbound_gateway, app + "-global-inbound-gateway-trade")
-        app_ready.inbound_dynamodb_settlement = get_readiness_status(global_inbound_gateway, app + "-global-inbound-gateway-settlement")
+        app_ready.inbound_dynamodb_settlement = check_dynamodb_ready(app, "in-gateway", "settlement")
+        app_ready.ingestion_dynamodb_settlement = check_dynamodb_ready(app, "ingress", "settlement")
+        app_ready.egress_dynamodb_settlement = check_dynamodb_ready(app, "egress", "settlement")
+        app_ready.outbound_dynamodb_settlement = check_dynamodb_ready(app, "out-gateway", "settlement")
 
-        global_ingestion = client.get_cell_readiness_summary(CellName= app + "-global-ingress")
-        app_ready.ingestion_dynamodb_trade = get_readiness_status(global_ingestion, app + "-global-ingress-trade")
-        app_ready.ingestion_dynamodb_settlement = get_readiness_status(global_ingestion, app + "-global-ingress-settlement")
+        intended_region = get_intended_active_region(app)
+        writer_region = get_aurora_writer_region(app)
+        app_ready.database_writer_region = writer_region or "UNKNOWN"
+        if intended_region is None or writer_region is None:
+            app_ready.database_writer_in_sync = "UNKNOWN"
+        elif intended_region == writer_region:
+            app_ready.database_writer_in_sync = "READY"
+        else:
+            app_ready.database_writer_in_sync = "NOT_READY"
 
-        global_matching = client.get_cell_readiness_summary(CellName=app + '-global-core')
-        app_ready.matching_rds = get_readiness_status(global_matching, app + "-global-core")
+        app_ready.matching_rds = check_rds_ready(app)
+        # The database is not "ready" if its writer is in the wrong region:
+        # the intended-active region would be writing to a read-only replica.
+        # Reset with: aws lambda invoke --function-name dbrotation ...
+        if app_ready.database_writer_in_sync == "NOT_READY":
+            app_ready.matching_rds = "NOT_READY"
 
-        global_egress = client.get_cell_readiness_summary(CellName= app + "-global-egress")
-        app_ready.egress_dynamodb_trade = get_readiness_status(global_egress, app + "-global-egress-trade")
-        app_ready.egress_dynamodb_settlement = get_readiness_status(global_egress, app + "-global-egress-settlement")
-
-        global_outbound_gateway = client.get_cell_readiness_summary(CellName= app + "-global-outbound-gateway")
-        app_ready.outbound_dynamodb_trade = get_readiness_status(global_outbound_gateway, app + "-global-outbound-gateway-trade")
-        app_ready.outbound_dynamodb_settlement = get_readiness_status(global_outbound_gateway, app + "-global-outbound-gateway-settlement")
-
-        region = "us-east-1"
-
-        primary_inbound_gateway = client.get_cell_readiness_summary(CellName=app + "-" + region + "-inbound-gateway")
-        app_ready.inbound_ecs_primary = get_readiness_status(primary_inbound_gateway, app + "-" + region + "-inbound-gateway-asg")
-
-        primary_ingestion = client.get_cell_readiness_summary(CellName=app + "-" + region + "-ingress")
-        app_ready.ingestion_ecs_primary = get_readiness_status(primary_ingestion, app + "-" + region + "-ingress-asg")
-
-        primary_matching = client.get_cell_readiness_summary(CellName=app + "-" + region + "-core")
-        app_ready.matching_ecs_ingestion_primary = get_readiness_status(primary_matching, app + "-" + region + "-core-asg-1")
-        app_ready.matching_ecs_matching_primary = get_readiness_status(primary_matching, app + "-" + region + "-core-asg-2")
-
-        primary_egress = client.get_cell_readiness_summary(CellName=app + "-" + region + "-egress")
-        app_ready.egress_ecs_primary = get_readiness_status(primary_egress, app + "-" + region + "-egress-asg")
-
-        primary_outbound_gateway = client.get_cell_readiness_summary(CellName=app + "-" + region + "-outbound-gateway")
-        app_ready.outbound_ecs_primary = get_readiness_status(primary_outbound_gateway, app + "-" + region + "-outbound-gateway-asg")
-
-        region = "us-west-2"
-
-        secondary_inbound_gateway = client.get_cell_readiness_summary(CellName=app + "-" + region + "-inbound-gateway")
-        app_ready.inbound_ecs_secondary = get_readiness_status(secondary_inbound_gateway, app + "-" + region + "-inbound-gateway-asg")
-
-        secondary_ingestion = client.get_cell_readiness_summary(CellName=app + "-" + region + "-ingress")
-        app_ready.ingestion_ecs_secondary = get_readiness_status(secondary_ingestion, app + "-" + region + "-ingress-asg")
-
-        secondary_matching = client.get_cell_readiness_summary(CellName=app + "-" + region + "-core")
-        app_ready.matching_ecs_ingestion_secondary = get_readiness_status(secondary_matching, app + "-" + region + "-core-asg-1")
-        app_ready.matching_ecs_matching_secondary = get_readiness_status(secondary_matching, app + "-" + region + "-core-asg-2")
-
-        secondary_egress = client.get_cell_readiness_summary(CellName=app + "-" + region + "-egress")
-        app_ready.egress_ecs_secondary = get_readiness_status(secondary_egress, app + "-" + region + "-egress-asg")
-
-        secondary_outbound_gateway = client.get_cell_readiness_summary(CellName=app + "-" + region + "-outbound-gateway")
-        app_ready.outbound_ecs_secondary = get_readiness_status(secondary_outbound_gateway, app + "-" + region + "-outbound-gateway-asg")
+        for region, suffix in [("us-east-1", "primary"), ("us-west-2", "secondary")]:
+            setattr(app_ready, "inbound_ecs_" + suffix, check_ecs_ready(app, "in-gateway", region))
+            setattr(app_ready, "ingestion_ecs_" + suffix, check_ecs_ready(app, "ingress", region))
+            setattr(app_ready, "matching_ecs_ingestion_" + suffix, check_ecs_ready(app, "core-matching", region))
+            setattr(app_ready, "matching_ecs_matching_" + suffix, check_ecs_ready(app, "core-matching", region))
+            setattr(app_ready, "egress_ecs_" + suffix, check_ecs_ready(app, "egress", region))
+            setattr(app_ready, "outbound_ecs_" + suffix, check_ecs_ready(app, "out-gateway", region))
 
         app_ready.summary = get_readiness_summary(app_ready, app)
 
@@ -753,11 +769,77 @@ def get_app_ready(event, context):
     return response
 
 
-def get_readiness_status(readiness_response, readiness_check_name):
-    for check in readiness_response["ReadinessChecks"]:
-        if check["ReadinessCheckName"] == readiness_check_name:
-            return check["Readiness"]
-    return "UNKNOWN"
+def check_dynamodb_ready(app, component, flow):
+    """READY when the global table is ACTIVE and its us-west-2 replica is ACTIVE."""
+    try:
+        table_name = app + "-" + component + "-" + flow + "-dynamodb-store"
+        client = boto3.client('dynamodb', region_name="us-east-1")
+        table = client.describe_table(TableName=table_name)["Table"]
+        if table.get("TableStatus") != "ACTIVE":
+            return "NOT_READY"
+        for replica in table.get("Replicas", []):
+            if replica.get("RegionName") == "us-west-2" and replica.get("ReplicaStatus") == "ACTIVE":
+                return "READY"
+        return "NOT_READY"
+    except Exception as error:
+        print("Error running check_dynamodb_ready", error)
+        return "UNKNOWN"
+
+
+def check_rds_ready(app):
+    """READY when both members of the Aurora global database are available."""
+    try:
+        clusters = [("us-east-1", app + "-core-primary-cluster"),
+                    ("us-west-2", app + "-core-secondary-cluster")]
+        for region, cluster_id in clusters:
+            client = boto3.client('rds', region_name=region)
+            status = client.describe_db_clusters(DBClusterIdentifier=cluster_id)["DBClusters"][0]["Status"]
+            if status != "available":
+                return "NOT_READY"
+        return "READY"
+    except Exception as error:
+        print("Error running check_rds_ready", error)
+        return "UNKNOWN"
+
+
+def get_intended_active_region(app):
+    """Region whose <app>-app-* routing control is On, or None unless
+    exactly one region is On (e.g. mid-runbook drain)."""
+    try:
+        on_regions = [r for r in ("us-east-1", "us-west-2")
+                      if get_arc_control_state(app, "app", r) == "On"]
+        return on_regions[0] if len(on_regions) == 1 else None
+    except Exception as error:
+        print("Error running get_intended_active_region", error)
+        return None
+
+
+def get_aurora_writer_region(app):
+    """Region currently holding the Aurora global database writer."""
+    try:
+        client = boto3.client('rds', region_name="us-east-1")
+        gc = client.describe_global_clusters(
+            GlobalClusterIdentifier=app + "-core-global-cluster")["GlobalClusters"][0]
+        for member in gc["GlobalClusterMembers"]:
+            if member.get("IsWriter"):
+                return member["DBClusterArn"].split(":")[3]
+        return None
+    except Exception as error:
+        print("Error running get_aurora_writer_region", error)
+        return None
+
+
+def check_ecs_ready(app, component, region):
+    """READY when the ECS cluster is ACTIVE with registered container instances."""
+    try:
+        client = boto3.client('ecs', region_name=region)
+        cluster = client.describe_clusters(clusters=[app + "-" + component + "-ecs-cluster"])["clusters"][0]
+        if cluster.get("status") == "ACTIVE" and cluster.get("registeredContainerInstancesCount", 0) > 0:
+            return "READY"
+        return "NOT_READY"
+    except Exception as error:
+        print("Error running check_ecs_ready", error)
+        return "UNKNOWN"
 
 
 def get_readiness_summary(app_ready, app_name):
@@ -832,6 +914,8 @@ class AppReady:
         self.ingestion_ecs_primary = "UNKNOWN"
         self.ingestion_ecs_secondary = "UNKNOWN"
         self.matching_rds = "UNKNOWN"
+        self.database_writer_region = "UNKNOWN"
+        self.database_writer_in_sync = "UNKNOWN"
         self.matching_ecs_ingestion_primary = "UNKNOWN"
         self.matching_ecs_ingestion_secondary = "UNKNOWN"
         self.matching_ecs_matching_primary = "UNKNOWN"
@@ -861,6 +945,8 @@ class AppReady:
             'ingestion_ecs_primary': self.ingestion_ecs_primary,
             'ingestion_ecs_secondary': self.ingestion_ecs_secondary,
             'matching_rds': self.matching_rds,
+            'database_writer_region': self.database_writer_region,
+            'database_writer_in_sync': self.database_writer_in_sync,
             'matching_ecs_ingestion_primary': self.matching_ecs_ingestion_primary,
             'matching_ecs_ingestion_secondary': self.matching_ecs_ingestion_secondary,
             'matching_ecs_matching_primary': self.matching_ecs_matching_primary,

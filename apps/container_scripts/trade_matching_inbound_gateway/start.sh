@@ -65,8 +65,6 @@ echo "$ARC_CLUSTER"
 
 #aws secretsmanager get-secret-value --secret-id tutorial/MyFirstSecret
 cd /inbound_gateway
-echo "Starting gradle build"
-gradle build -x test
 echo "Executing App"
 java -jar build/libs/app.inbound.gateway-0.0.1-SNAPSHOT.jar --aws.stateTableName=$STATE_TABLE_NAME \
 --aws.stateSettlementTableName=$STATE_SETTLEMENT_TABLE_NAME \

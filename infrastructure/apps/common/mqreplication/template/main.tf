@@ -38,7 +38,7 @@ resource "aws_mq_configuration" "mq-replication_configuration" {
   description    = "mq-replication"
   name           = "mq-replication"
   engine_type    = "ActiveMQ"
-  engine_version = "5.15.0"
+  engine_version = "5.18"
 
   data = local.configuration
 

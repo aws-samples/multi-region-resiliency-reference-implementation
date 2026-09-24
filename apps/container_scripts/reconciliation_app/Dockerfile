@@ -1,26 +1,24 @@
-// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-// SPDX-License-Identifier: MIT-0
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
 
-FROM amazonlinux:2 AS builder
-RUN yum update -y && yum install -y initscripts;
+FROM public.ecr.aws/docker/library/python:3.9-slim AS builder
 ARG ARG_CREDS
 ARG ARG_REGION
 ENV RECONCILIATION=""
-ENV REGION=""
 ENV CREDS=$ARG_CREDS
 ENV REGION=$ARG_REGION
-RUN yum update -y && yum install -y awscli
-RUN yum install wget -y && yum install unzip -y && yum install tar -y && yum install jq -y
-RUN yum groupinstall "Development Tools" -y && yum install openssl-devel libffi-devel bzip2-devel -y
-WORKDIR /opt
-RUN wget https://www.python.org/ftp/python/3.9.10/Python-3.9.10.tgz -P /opt
-RUN tar xvf /opt/Python-3.9.10.tgz
-RUN sh  /opt/Python-3.9.10/configure --enable-optimizations
-RUN make altinstall
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl unzip jq ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+RUN curl -sSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip \
+    && unzip -q /tmp/awscliv2.zip -d /tmp \
+    && /tmp/aws/install \
+    && rm -rf /tmp/aws /tmp/awscliv2.zip
 FROM builder
 WORKDIR /
 COPY reconciliation_app reconciliation_app
 COPY certs certs
 COPY start.sh start.sh
+RUN pip install --no-cache-dir -r /reconciliation_app/src/requirements.txt
 RUN chmod +x start.sh
 CMD ["sh", "/start.sh"]

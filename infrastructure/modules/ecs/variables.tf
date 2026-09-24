@@ -64,16 +64,8 @@ variable "TASK_COUNT" {
 variable "ECS_INSTANCE_TYPE" {
 
   type = string
-  default = "t2.large"
+  default = "t3.large"
 }
 
-variable "ECS_AMIS" {
-
-  type = map(string)
-  default = {
-    us-east-1 = "ami-0c5c9bcfb36b772fe"
-    us-west-2 = "ami-0b250f625dc7f2bc9"
-  }
-}
-
-# Full List: http://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-optimized_AMI.html
+# The ECS-optimized AMI is resolved dynamically at deploy time from the public
+# SSM parameter /aws/service/ecs/optimized-ami/amazon-linux-2023/recommended/image_id

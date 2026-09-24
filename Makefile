@@ -23,7 +23,7 @@ deploy-apps:
 
 create-role:
 	@echo "Creating role for account $(ACCOUNT)"
-	(aws iam create-role --role-name $(ROLE) --assume-role-policy-document file://trust-policy.json; \
+	(aws iam create-role --role-name $(ROLE) --assume-role-policy-document file://trust-policy.json --max-session-duration 43200; \
 	aws iam attach-role-policy --role-name $(ROLE) --policy-arn arn:aws:iam::aws:policy/AdministratorAccess;)
 	@echo "Finished creating role for account $(ACCOUNT)"
 

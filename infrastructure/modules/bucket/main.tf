@@ -6,7 +6,6 @@ provider "aws" {
   alias = "primary"
   region = var.AWS_PRIMARY_REGION
 
-  skip_get_ec2_platforms      = true
   skip_metadata_api_check     = true
   skip_region_validation      = true
   skip_credentials_validation = true
@@ -18,7 +17,6 @@ provider "aws" {
   alias = "secondary"
   region = var.AWS_SECONDARY_REGION
 
-  skip_get_ec2_platforms      = true
   skip_metadata_api_check     = true
   skip_region_validation      = true
   skip_credentials_validation = true
@@ -59,7 +57,8 @@ module "replica_bucket" {
     aws = aws.secondary
   }
 
-  source = "terraform-aws-modules/s3-bucket/aws"
+  source  = "terraform-aws-modules/s3-bucket/aws"
+  version = "~> 4.0"
 
   bucket = local.destination_bucket_name
   acl    = "private"
@@ -75,7 +74,8 @@ module "s3_bucket" {
     aws = aws.primary
   }
 
-  source = "terraform-aws-modules/s3-bucket/aws"
+  source  = "terraform-aws-modules/s3-bucket/aws"
+  version = "~> 4.0"
 
   bucket = local.bucket_name
   acl    = "private"

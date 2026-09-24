@@ -48,7 +48,6 @@ resource "aws_iam_policy" "lambda_exec_policy" {
           "route53:*",
           "route53-recovery-control-config:*",
           "route53-recovery-cluster:*",
-          "route53-recovery-readiness:*",
           "fis:*"
         ]
         Resource = "*"

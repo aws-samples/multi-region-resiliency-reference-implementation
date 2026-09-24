@@ -49,8 +49,6 @@ echo "$OUTBOUND_STREAM_NAME"
 
 #aws secretsmanager get-secret-value --secret-id tutorial/MyFirstSecret
 cd /settlement_egress
-echo "Starting gradle build"
-gradle build -x test
 echo "Executing App"
 java -jar build/libs/SettlementEgress-0.0.1-SNAPSHOT.jar --aws.safeStoreTable=$STATE_TABLE_NAME \
 --aws.inboundStreamName=$INBOUND_STREAM_NAME --aws.region=$REGION --aws.outboundStreamName=$OUTBOUND_STREAM_NAME

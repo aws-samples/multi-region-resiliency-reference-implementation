@@ -69,7 +69,6 @@ echo "$ARC_CLUSTER"
 
 #aws secretsmanager get-secret-value --secret-id tutorial/MyFirstSecret
 cd /inbound_gateway
-gradle build -x test
 echo "Executing App"
 java -jar build/libs/SettlementInbound-0.0.1-SNAPSHOT.jar --aws.stateTableName=$STATE_TABLE_NAME \
 --aws.streamName=$STREAM_NAME --aws.region=$REGION --spring.activemq.broker-url=$QUEUE_EP \

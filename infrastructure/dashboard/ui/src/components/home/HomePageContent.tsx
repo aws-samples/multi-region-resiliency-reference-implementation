@@ -6,7 +6,6 @@ import {ColumnLayout, Column, Container, Box, Button} from "aws-northstar";
 import Stack from "aws-northstar/layouts/Stack";
 import './styles.css';
 import approtation from "./approtation.png";
-import {useOktaAuth} from "@okta/okta-react";
 import {IUserInfo} from "../../interfaces";
 import {useDispatch} from "react-redux";
 

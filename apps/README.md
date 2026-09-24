@@ -32,7 +32,7 @@ make deploy-st
 make deploy-generator
 make deploy-inbound
 make deploy-ingress
-make deploy-core-ingestion
+make deploy-core-matching
 make deploy-core-matching
 make deploy-egress
 make deploy-outbound

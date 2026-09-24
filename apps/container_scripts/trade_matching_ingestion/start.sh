@@ -60,8 +60,6 @@ echo "$NACK_STREAM_NAME"
 
 #aws secretsmanager get-secret-value --secret-id tutorial/MyFirstSecret
 cd /trade_matching_ingestion
-echo "Starting gradle build"
-gradle build -x test
 echo "Executing App"
 
 java -jar build/libs/kinesismessagedump-0.0.1-SNAPSHOT.jar --aws.stateTableName=$STATE_TABLE_NAME \

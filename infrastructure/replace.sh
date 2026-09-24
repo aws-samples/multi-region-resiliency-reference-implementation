@@ -4,7 +4,6 @@ search='awsd1'
 replace=$1
 sed -i '' "s/$search/$replace/g" ./apps/common/remote-store/stores/backend.tf
 sed -i '' "s/$search/$replace/g" ./apps/common/remote-store/stores/terraform.tfvars
-sed -i '' "s/$search/$replace/g" ./apps/common/arc/backend.tf
 sed -i '' "s/$search/$replace/g" ./apps/common/arccluster/backend.tf
 sed -i '' "s/$search/$replace/g" ./apps/common/dbrotation/backend.tf
 sed -i '' "s/$search/$replace/g" ./apps/common/chaos/backend.tf

@@ -23,7 +23,8 @@ data "aws_secretsmanager_secret_version" "dynamodb-secondary-kms-key-version" {
 
 module "dynamodb_table" {
 
-  source   = "terraform-aws-modules/dynamodb-table/aws"
+  source  = "terraform-aws-modules/dynamodb-table/aws"
+  version = "~> 4.0"
 
   name              = "${var.APP}-${var.COMPONENT}-dynamodb-store"
   hash_key          = "id"

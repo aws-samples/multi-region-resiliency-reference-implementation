@@ -30,33 +30,55 @@ resource "aws_iam_instance_profile" "ecs-ec2-role" {
   role = "team-app-rotation-ecs-ec2-role"
 }
 
-resource "aws_launch_configuration" "launch-config" {
+data "aws_ssm_parameter" "ecs_optimized_ami" {
 
-  name_prefix          = "${var.APP}-${var.COMPONENT}-launch-config"
-  image_id             = var.ECS_AMIS[var.AWS_REGION]
-  instance_type        = var.ECS_INSTANCE_TYPE
-  iam_instance_profile = aws_iam_instance_profile.ecs-ec2-role.id
-  security_groups      = [var.ECS_SECURITY_GROUP_ID]
-  user_data            = "#!/bin/bash\necho 'ECS_CLUSTER=${var.APP}-${var.COMPONENT}-ecs-cluster' > /etc/ecs/ecs.config\nstart ecs"
+  name = "/aws/service/ecs/optimized-ami/amazon-linux-2023/recommended/image_id"
+}
+
+resource "aws_launch_template" "launch-template" {
+
+  name_prefix            = "${var.APP}-${var.COMPONENT}-launch-template"
+  image_id               = data.aws_ssm_parameter.ecs_optimized_ami.value
+  instance_type          = var.ECS_INSTANCE_TYPE
+  vpc_security_group_ids = [var.ECS_SECURITY_GROUP_ID]
+  user_data              = base64encode("#!/bin/bash\necho 'ECS_CLUSTER=${var.APP}-${var.COMPONENT}-ecs-cluster' >> /etc/ecs/ecs.config")
+
+  iam_instance_profile {
+    arn = aws_iam_instance_profile.ecs-ec2-role.arn
+  }
+
+  metadata_options {
+    http_endpoint = "enabled"
+    http_tokens   = "required"
+  }
+
+  block_device_mappings {
+    device_name = "/dev/xvda"
+
+    ebs {
+      encrypted   = true
+      volume_size = 30
+    }
+  }
+
   lifecycle {
     create_before_destroy = true
   }
-  root_block_device {
-    encrypted = true
-  }
-
-  #checkov:skip=CKV_AWS_79:Ensure Instance Metadata Service Version 1 is not enabled
 }
 
 resource "aws_autoscaling_group" "auto-scaling-group" {
 
   name                      = "${var.APP}-${var.COMPONENT}-asg"
   vpc_zone_identifier       = var.SUBNET_IDS
-  launch_configuration      = aws_launch_configuration.launch-config.name
   min_size                  = var.CONTAINER_COUNT
   max_size                  = 10
   health_check_grace_period = 300
-  health_check_type         = "ELB"
+  health_check_type         = "EC2"
+
+  launch_template {
+    id      = aws_launch_template.launch-template.id
+    version = "$Latest"
+  }
 
   tag {
     key   = "Name"
@@ -141,6 +163,7 @@ resource "aws_ecr_repository" "approtation" {
 
   name = "${var.APP}-${var.COMPONENT}-ecr"
   image_tag_mutability = "MUTABLE"
+  force_delete         = true
 
   encryption_configuration {
     encryption_type = "KMS"
@@ -218,25 +241,35 @@ resource "aws_s3_bucket" "log_bucket" {
 
   bucket = "${var.APP_SHORT}-${var.COMPONENT_SHORT}-${var.AWS_REGION}-ecs-elb-log-bucket-${var.ENV}"
 
-  acl           = "private"
   force_destroy = true
 
-  versioning {
-    enabled = true
-  }
+  #checkov:skip=CKV_AWS_144:Ensure that S3 bucket has cross-region replication enabled
+  #checkov:skip=CKV_AWS_18:Ensure the S3 bucket has access logging enabled
+}
 
-  server_side_encryption_configuration {
-    rule {
-      apply_server_side_encryption_by_default {
-        sse_algorithm     = "aws:kms"
-      }
+resource "aws_s3_bucket_versioning" "log_bucket" {
+
+  bucket = aws_s3_bucket.log_bucket.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "log_bucket" {
+
+  bucket = aws_s3_bucket.log_bucket.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
     }
   }
+}
 
-//  logging {
-//      target_bucket = "${var.APP == "trade-matching" ? "tm" : "sm"}-${var.COMPONENT == "in-gateway" ? "in" : "out"}-${var.AWS_REGION}-ecs-elb-log-bucket-${var.ENV}-log"
-//      target_prefix = "log/${var.APP == "trade-matching" ? "tm" : "sm"}-${var.COMPONENT == "in-gateway" ? "in" : "out"}-${var.AWS_REGION}-ecs-elb-log-bucket-${var.ENV}"
-//  }
+resource "aws_s3_bucket_policy" "log_bucket" {
+
+  bucket = aws_s3_bucket.log_bucket.id
 
   policy = <<POLICY
 {
@@ -248,7 +281,7 @@ resource "aws_s3_bucket" "log_bucket" {
         "s3:PutObject"
       ],
       "Effect": "Allow",
-      "Resource": "arn:aws:s3:::${var.APP_SHORT}-${var.COMPONENT_SHORT}-${var.AWS_REGION}-ecs-elb-log-bucket-${var.ENV}/AWSLogs/*",
+      "Resource": "${aws_s3_bucket.log_bucket.arn}/AWSLogs/*",
       "Principal": {
         "AWS": [
           "${data.aws_elb_service_account.main.arn}"
@@ -259,8 +292,7 @@ resource "aws_s3_bucket" "log_bucket" {
 }
 POLICY
 
-  #checkov:skip=CKV_AWS_144:Ensure that S3 bucket has cross-region replication enabled
-  #checkov:skip=CKV_AWS_18:Ensure the S3 bucket has access logging enabled
+  depends_on = [aws_s3_bucket_public_access_block.public_access_block]
 }
 
 resource "aws_s3_bucket_public_access_block" "public_access_block" {

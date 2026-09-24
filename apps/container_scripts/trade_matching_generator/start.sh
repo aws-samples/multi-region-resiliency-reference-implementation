@@ -70,8 +70,6 @@ ARC_CLUSTER=`aws secretsmanager get-secret-value --secret-id approtation-cluster
 
 #aws secretsmanager get-secret-value --secret-id tutorial/MyFirstSecret
 cd /trades_generator
-echo "Starting gradle build"
-gradle build
 echo "Executing App"
 java -jar build/libs/trades-0.0.1-SNAPSHOT.jar --aws.region=$REGION --aws.queueEndPoint=$QUEUE_ENDPOINT \
 --aws.queueUsername=$QUEUE_USERNAME --aws.queuePassword=$QUEUE_PASSWORD --aws.destinationQueue=$QUEUE_NAME \

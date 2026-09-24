@@ -6,5 +6,5 @@ resource "aws_lambda_layer_version" "lambda_layer" {
   filename   = "psycopg2.zip"
   layer_name = "psycopg2"
 
-  compatible_runtimes = ["python3.8"]
+  compatible_runtimes = ["python3.12"]
 }
