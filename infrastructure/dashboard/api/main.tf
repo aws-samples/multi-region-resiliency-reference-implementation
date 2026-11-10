@@ -130,6 +130,7 @@ module "app_state" {
   METHOD_NAME               = "GET"
   STAGE                     = "dev"
   LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
+  WEB_ACL_ARN               = aws_wafv2_web_acl.api.arn
 }
 
 module "app_states" {
@@ -151,6 +152,7 @@ module "app_states" {
   METHOD_NAME               = "GET"
   STAGE                     = "dev"
   LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
+  WEB_ACL_ARN               = aws_wafv2_web_acl.api.arn
 }
 
 module "app_controls" {
@@ -172,6 +174,7 @@ module "app_controls" {
   METHOD_NAME               = "GET"
   STAGE                     = "dev"
   LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
+  WEB_ACL_ARN               = aws_wafv2_web_acl.api.arn
 }
 
 module "arc_control" {
@@ -193,6 +196,7 @@ module "arc_control" {
   METHOD_NAME               = "POST"
   STAGE                     = "dev"
   LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
+  WEB_ACL_ARN               = aws_wafv2_web_acl.api.arn
 }
 
 module "execute_run_book" {
@@ -214,6 +218,7 @@ module "execute_run_book" {
   METHOD_NAME               = "POST"
   STAGE                     = "dev"
   LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
+  WEB_ACL_ARN               = aws_wafv2_web_acl.api.arn
 }
 
 module "app_recons" {
@@ -235,6 +240,7 @@ module "app_recons" {
   METHOD_NAME               = "GET"
   STAGE                     = "dev"
   LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
+  WEB_ACL_ARN               = aws_wafv2_web_acl.api.arn
 }
 
 module "app_recon_step" {
@@ -256,6 +262,7 @@ module "app_recon_step" {
   METHOD_NAME               = "GET"
   STAGE                     = "dev"
   LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
+  WEB_ACL_ARN               = aws_wafv2_web_acl.api.arn
 }
 
 module "app_ready" {
@@ -277,6 +284,7 @@ module "app_ready" {
   METHOD_NAME               = "GET"
   STAGE                     = "dev"
   LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
+  WEB_ACL_ARN               = aws_wafv2_web_acl.api.arn
 }
 
 module "app_health" {
@@ -298,6 +306,7 @@ module "app_health" {
   METHOD_NAME               = "GET"
   STAGE                     = "dev"
   LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
+  WEB_ACL_ARN               = aws_wafv2_web_acl.api.arn
 }
 
 module "app_replication" {
@@ -319,6 +328,7 @@ module "app_replication" {
   METHOD_NAME               = "GET"
   STAGE                     = "dev"
   LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
+  WEB_ACL_ARN               = aws_wafv2_web_acl.api.arn
 }
 
 module "start_app" {
@@ -340,6 +350,7 @@ module "start_app" {
   METHOD_NAME               = "POST"
   STAGE                     = "dev"
   LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
+  WEB_ACL_ARN               = aws_wafv2_web_acl.api.arn
 }
 
 module "stop_apps" {
@@ -361,6 +372,7 @@ module "stop_apps" {
   METHOD_NAME               = "POST"
   STAGE                     = "dev"
   LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
+  WEB_ACL_ARN               = aws_wafv2_web_acl.api.arn
 }
 
 module "clean_databases" {
@@ -382,6 +394,7 @@ module "clean_databases" {
   METHOD_NAME               = "POST"
   STAGE                     = "dev"
   LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
+  WEB_ACL_ARN               = aws_wafv2_web_acl.api.arn
 }
 
 module "executions" {
@@ -403,6 +416,7 @@ module "executions" {
   METHOD_NAME               = "GET"
   STAGE                     = "dev"
   LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
+  WEB_ACL_ARN               = aws_wafv2_web_acl.api.arn
 }
 
 module "execution_detail" {
@@ -424,6 +438,7 @@ module "execution_detail" {
   METHOD_NAME               = "GET"
   STAGE                     = "dev"
   LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
+  WEB_ACL_ARN               = aws_wafv2_web_acl.api.arn
 }
 
 module "experiment" {
@@ -445,6 +460,7 @@ module "experiment" {
   METHOD_NAME               = "POST"
   STAGE                     = "dev"
   LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
+  WEB_ACL_ARN               = aws_wafv2_web_acl.api.arn
 }
 
 module "start_app_component" {
@@ -466,6 +482,7 @@ module "start_app_component" {
   METHOD_NAME               = "POST"
   STAGE                     = "dev"
   LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
+  WEB_ACL_ARN               = aws_wafv2_web_acl.api.arn
 }
 
 module "enable_vpc_endpoint" {
@@ -487,4 +504,5 @@ module "enable_vpc_endpoint" {
   METHOD_NAME               = "POST"
   STAGE                     = "dev"
   LAYERS                    = [aws_lambda_layer_version.psycopg2.arn]
+  WEB_ACL_ARN               = aws_wafv2_web_acl.api.arn
 }

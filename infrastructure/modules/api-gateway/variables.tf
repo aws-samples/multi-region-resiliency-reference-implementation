@@ -80,3 +80,10 @@ variable "LAYERS" {
   type    = list(string)
   default = []
 }
+
+variable "WEB_ACL_ARN" {
+
+  description = "ARN of a REGIONAL WAFv2 web ACL to associate with this API stage."
+
+  type = string
+}

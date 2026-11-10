@@ -1,5 +1,6 @@
 import json
 from datetime import datetime, timedelta
+import os
 import time
 
 from botocore.exceptions import ClientError
@@ -13,6 +14,26 @@ import random
 
 
 ROLLBACK_TIME_IN_SECONDS = 3600
+
+DEFAULT_ALLOWED_RUNBOOKS = (
+    "approtation-Runbook-Managed-Failover",
+    "approtation-Runbook-Detach-And-Promote",
+    "Scenario-001",
+    "SC-001",
+)
+
+
+def _allowed_set(env_var, default):
+    raw = os.environ.get(env_var, "")
+    values = {v.strip() for v in raw.split(",") if v.strip()}
+    return values or set(default)
+
+
+ALLOWED_RUNBOOKS = _allowed_set("ALLOWED_RUNBOOKS", DEFAULT_ALLOWED_RUNBOOKS)
+ALLOWED_REGIONS = _allowed_set("ALLOWED_RUNBOOK_REGIONS", ("us-east-1", "us-west-2"))
+ALLOWED_APPS = _allowed_set("ALLOWED_APPS", ("trade-matching", "settlement"))
+ALLOWED_TYPES = _allowed_set("ALLOWED_RUNBOOK_TYPES", ("App Rotation", "DR"))
+ALLOWED_MODES = _allowed_set("ALLOWED_RUNBOOK_MODES", ("test", "prod"))
 
 def enable_logging():
     root = logging.getLogger()
@@ -511,17 +532,44 @@ def execute_run_book(event, context):
     try:
         input_body = event.get("body")
         if input_body:
-            json_param = json.loads(input_body)
-            region = json_param["region"]
-            document = json_param["document"]
-            app = json_param["app"]
-            type = json_param["type"]
-            mode = json_param["mode"]
+            try:
+                json_param = json.loads(input_body)
+            except ValueError:
+                return {
+                    "statusCode": 400,
+                    'headers': cors_headers(),
+                    "body": json.dumps("Error, body is not valid JSON")
+                }
 
-            client = boto3.client('ssm', region_name=region)
-            client.start_automation_execution(DocumentName=document, Parameters={'APP': [app], 'TYPE': [type], 'MODE': [mode]})
+            region = json_param.get("region")
+            document = json_param.get("document")
+            app = json_param.get("app")
+            type = json_param.get("type")
+            mode = json_param.get("mode")
 
-            status_code = 200
+            rejected = [field for field, value, allowed in (
+                ("region", region, ALLOWED_REGIONS),
+                ("document", document, ALLOWED_RUNBOOKS),
+                ("app", app, ALLOWED_APPS),
+                ("type", type, ALLOWED_TYPES),
+                ("mode", mode, ALLOWED_MODES),
+            ) if value not in allowed]
+
+            if rejected:
+                logging.warning(
+                    "execute_run_book REJECTED: disallowed %s "
+                    "(document=%r region=%r app=%r type=%r mode=%r)",
+                    ",".join(rejected), document, region, app, type, mode)
+                result = "Error, disallowed value for: " + ", ".join(rejected)
+                status_code = 400
+            else:
+                client = boto3.client('ssm', region_name=region)
+                client.start_automation_execution(DocumentName=document, Parameters={'APP': [app], 'TYPE': [type], 'MODE': [mode]})
+
+                logging.info(
+                    "execute_run_book started document=%s region=%s app=%s type=%s mode=%s",
+                    document, region, app, type, mode)
+                status_code = 200
         else:
             result = "Error, incorrect post body"
             status_code = 400
