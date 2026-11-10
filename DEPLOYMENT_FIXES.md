@@ -60,24 +60,6 @@ dashboard APIs** — which presents as a dashboard that loads but whose panels
 never populate. For IPv6 use the /64 prefix, not a /128: client privacy
 extensions rotate the host bits.
 
-## 4. Verification checklist
-
-Confirm after applying `dashboard/api`:
-
-- [ ] `terraform plan` shows two IP sets, one web ACL, and 18 WAF
-      associations; `terraform apply` completes.
-- [ ] From an allowlisted address, the dashboard loads and all panels
-      populate.
-- [ ] All four dashboard runbook buttons start an execution, and the
-      execution list and step detail views still populate.
-- [ ] A request naming a document or region outside the allowlists returns
-      400 and starts no execution.
-- [ ] The same request still fails with `AccessDeniedException` when sent
-      directly to the Lambda, bypassing the handler check — this confirms the
-      IAM scoping, not just the application check, is in force.
-- [ ] A request from a non-allowlisted address is rejected before reaching
-      Lambda, and increments the `DashboardApiBlocked` metric.
-
 ---
 
 # July 2026 — Restoring deployability
