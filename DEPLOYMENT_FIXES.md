@@ -1,4 +1,68 @@
-# Deployment Fixes — July 2026
+# Deployment Fixes
+
+Newest changes first.
+
+---
+
+# November 2026 — Dashboard API security enhancements
+
+Defense-in-depth hardening of the dashboard API tier: request validation,
+reduced IAM permissions, and extending the existing WAF perimeter to API
+Gateway. No change to the dashboard UI, the API request/response contracts, or
+the application stacks.
+
+## 1. Request validation on the runbook endpoint
+
+`execute_run_book` (`infrastructure/dashboard/api/src/api.py`) now parses the
+incoming `region`, `document`, `app`, `type` and `mode`, and proceeds only if
+every field matches an allowlist; otherwise it returns 400 naming the offending
+fields. A malformed or incomplete body returns 400, and both started and
+rejected requests are logged.
+
+Each allowlist can be overridden per deployment with a comma-separated Lambda
+environment variable (`ALLOWED_RUNBOOKS`, `ALLOWED_RUNBOOK_REGIONS`,
+`ALLOWED_APPS`, `ALLOWED_RUNBOOK_TYPES`, `ALLOWED_RUNBOOK_MODES`). If you add a
+runbook to `apps/common/rotation`, add it to `DEFAULT_ALLOWED_RUNBOOKS` in
+`api.py` **and** to `local.runbook_document_names` in `dashboard/api/iam.tf`.
+
+## 2. Reduced permissions for the dashboard Lambda role
+
+`team-dashboard-lambda-role` is scoped to just the permissions the dashboard
+uses, against just this solution's own runbooks in the configured regions:
+`StartAutomationExecution` on those automation-definition ARNs,
+automation-execution reads, and an explicit `Deny` covering SSM document and
+association mutation, Run Command and Session Manager. The role carries no
+`iam:PassRole` grant — the runbook documents carry their own `assumeRole`.
+
+`RUNBOOK_REGIONS` (default `["us-east-1", "us-west-2"]`) drives the region
+scoping. The non-SSM grants in this policy remain candidates for the same
+treatment.
+
+## 3. Extend the WAF IP allowlist to API Gateway
+
+A new regional web ACL (`infrastructure/dashboard/api/waf.tf`) is associated
+with all 18 API stages — default-deny, admitting only the CIDRs you allowlist,
+with a rate-based rule evaluated ahead of the allow rules. The `api-gateway`
+module takes a **required** `WEB_ACL_ARN` and associates it unconditionally, the
+same way the hosting stack wires its web ACL onto the CloudFront distribution,
+so no stage can be created without one. Resolves the `CKV2_AWS_29` suppression.
+
+Set the allowlist in `dashboard/api/terraform.tfvars` before applying, using the
+same values as `dashboard/infra`:
+
+```hcl
+ALLOWED_IP_CIDRS   = ["<your IPv4>/32"]
+ALLOWED_IPV6_CIDRS = ["<your IPv6 /64 prefix>"]
+```
+
+Both default to empty, and **an empty allowlist blocks every request to the
+dashboard APIs** — which presents as a dashboard that loads but whose panels
+never populate. For IPv6 use the /64 prefix, not a /128: client privacy
+extensions rotate the host bits.
+
+---
+
+# July 2026 — Restoring deployability
 
 This document describes every change made to restore this repository to a
 deployable state on current AWS APIs, current Terraform/provider versions, and

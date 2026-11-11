@@ -8,6 +8,7 @@ infrastructure/apps/common/dbrotation/dbrotation.zip
 apps/container_scripts/certs/
 __pycache__/
 infrastructure/dashboard/infra/terraform.tfvars
+infrastructure/dashboard/api/terraform.tfvars
 infrastructure/dashboard/api/psycopg2_layer.zip
 infrastructure/dashboard/api/get_app_state.zip
 infrastructure/dashboard/ui/build/

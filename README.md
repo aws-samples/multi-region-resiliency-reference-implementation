@@ -92,6 +92,13 @@ Failover Orchestration runbook
 > A catalog of the changes that restored this repository to a deployable
 > state (with root causes) is in [DEPLOYMENT_FIXES.md](DEPLOYMENT_FIXES.md).
 
+> **Recent security enhancements:** the dashboard API tier has been hardened
+> with network admission control, request validation on the runbook endpoint,
+> and least-privilege IAM for the dashboard Lambda role. One of these requires
+> configuration before you deploy the dashboard API — see step 4a below and
+> the November 2026 section of
+> [DEPLOYMENT_FIXES.md](DEPLOYMENT_FIXES.md).
+
 ### Prerequisites
 
 Software on the machine you deploy from:
@@ -180,7 +187,10 @@ task count.
 ```shell
 cd infrastructure/dashboard
 
-# 4a. API: build the psycopg2 Lambda layer, then apply
+# 4a. API: allowlist your IPs in api/terraform.tfvars (same values as 4d),
+#     build the psycopg2 Lambda layer, then apply
+#     ALLOWED_IP_CIDRS   = ["<your IPv4>/32"]
+#     ALLOWED_IPV6_CIDRS = ["<your IPv6 /64 prefix>"]  (omit if no IPv6)
 ./api/build_layer.sh
 (cd api && terraform init && terraform apply -auto-approve)
 
@@ -200,6 +210,12 @@ The dashboard URL is the CloudFront `domain_name` shown in the apply output.
 Access is blocked by AWS WAF except for the CIDRs you allowlist. Browsers
 often prefer IPv6 — allowlist your network's /64 prefix rather than a /128,
 because client privacy extensions rotate the host bits of the address.
+
+The dashboard APIs are allowlisted the same way and with the same values
+(step 4a). The browser calls them directly rather than through CloudFront, so
+both stacks see the same client address. If the dashboard loads but its panels
+stay empty, check that `ALLOWED_IP_CIDRS` / `ALLOWED_IPV6_CIDRS` are set in
+`api/terraform.tfvars` and not just in `infra/terraform.tfvars`.
 
 ### 5. Start the demo
 

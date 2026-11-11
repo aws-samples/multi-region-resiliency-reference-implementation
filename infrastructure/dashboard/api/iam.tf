@@ -1,6 +1,30 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
+data "aws_caller_identity" "current" {}
+
+locals {
+
+  runbook_document_names = [
+    "approtation-Runbook-Managed-Failover",
+    "approtation-Runbook-Detach-And-Promote",
+    "Scenario-001",
+    "SC-001",
+  ]
+
+  runbook_automation_definition_arns = flatten([
+    for region in var.RUNBOOK_REGIONS : [
+      for name in local.runbook_document_names :
+      "arn:aws:ssm:${region}:${data.aws_caller_identity.current.account_id}:automation-definition/${name}:*"
+    ]
+  ])
+
+  runbook_automation_execution_arns = [
+    for region in var.RUNBOOK_REGIONS :
+    "arn:aws:ssm:${region}:${data.aws_caller_identity.current.account_id}:automation-execution/*"
+  ]
+}
+
 resource "aws_iam_role" "lambda_exec" {
 
   name = "team-dashboard-lambda-role"
@@ -30,6 +54,7 @@ resource "aws_iam_policy" "lambda_exec_policy" {
     Version = "2012-10-17"
     Statement = [
       {
+        Sid      = "DashboardNonSsmAccess"
         Effect   = "Allow"
         Action = [
           "cloudwatch:*",
@@ -37,18 +62,58 @@ resource "aws_iam_policy" "lambda_exec_policy" {
           "ecs:*",
           "dynamodb:*",
           "health:*",
-          "iam:PassRole",
           "iam:CreateServiceLinkedRole",
           "kms:*",
           "lambda:*",
           "logs:*",
           "rds:*",
           "secretsmanager:*",
-          "ssm:*",
           "route53:*",
           "route53-recovery-control-config:*",
           "route53-recovery-cluster:*",
           "fis:*"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid      = "StartSolutionRunbooksOnly"
+        Effect   = "Allow"
+        Action   = ["ssm:StartAutomationExecution"]
+        Resource = local.runbook_automation_definition_arns
+      },
+      {
+        Sid      = "ReadAutomationExecutionDetail"
+        Effect   = "Allow"
+        Action   = ["ssm:GetAutomationExecution"]
+        Resource = local.runbook_automation_execution_arns
+      },
+      {
+        Sid    = "ListAutomationExecutions"
+        Effect = "Allow"
+        Action = [
+          "ssm:DescribeAutomationExecutions",
+          "ssm:DescribeAutomationStepExecutions"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "DenySsmDocumentAndCommandMutation"
+        Effect = "Deny"
+        Action = [
+          "ssm:CreateDocument",
+          "ssm:UpdateDocument",
+          "ssm:UpdateDocumentDefaultVersion",
+          "ssm:ModifyDocumentPermission",
+          "ssm:DeleteDocument",
+          "ssm:AddTagsToResource",
+          "ssm:RemoveTagsFromResource",
+          "ssm:PutParameter",
+          "ssm:SendCommand",
+          "ssm:StartSession",
+          "ssm:ResumeSession",
+          "ssm:CreateAssociation",
+          "ssm:UpdateAssociation",
+          "ssm:CreateMaintenanceWindow"
         ]
         Resource = "*"
       }

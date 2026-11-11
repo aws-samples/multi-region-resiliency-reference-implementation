@@ -277,7 +277,6 @@ resource "aws_api_gateway_stage" "stage" {
   }
 
   #checkov:skip=CKV_AWS_120: "Ensure API Gateway caching is enabled"
-  #checkov:skip=CKV2_AWS_29:Ensure public API gateway are protected by WAF
 }
 
 resource "aws_api_gateway_method_settings" "all" {
@@ -292,6 +291,12 @@ resource "aws_api_gateway_method_settings" "all" {
   }
 
   #checkov:skip=CKV_AWS_225:Ensure API Gateway method setting caching is enabled
+}
+
+resource "aws_wafv2_web_acl_association" "stage" {
+
+  resource_arn = aws_api_gateway_stage.stage.arn
+  web_acl_arn  = var.WEB_ACL_ARN
 }
 
 resource "aws_lambda_permission" "method_permission" {
